@@ -15,6 +15,9 @@ RUN apk update && apk add git
 # Set working directory for all build stages.
 WORKDIR /usr/src/app
 
+RUN git init .
+RUN git remote add -t \* -f origin https://github.com/furyhawk/heynote.git
+RUN git checkout main
 
 ################################################################################
 # Create a stage for installing production dependecies.
@@ -28,10 +31,6 @@ RUN --mount=type=bind,source=package.json,target=package.json \
     --mount=type=bind,source=package-lock.json,target=package-lock.json \
     --mount=type=cache,target=/root/.npm \
     npm ci --omit=dev
-
-RUN git init .
-RUN git remote add -t \* -f origin https://github.com/furyhawk/heynote.git
-RUN git checkout main
 
 RUN npm install
 ################################################################################
