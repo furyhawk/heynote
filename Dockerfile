@@ -48,35 +48,37 @@ RUN --mount=type=bind,source=package.json,target=package.json \
 # COPY . .
 
 # Run the build script.
-# RUN npm run webapp:build
+RUN npm run webapp:build
 
 
 ################################################################################
 # Create a new stage to run the application with minimal runtime dependencies
 # where the necessary files are copied from the build stage.
 # FROM base as final
-
-# Use production node environment by default.
-# ENV NODE_ENV production
-
-# Run the application as a non-root user.
-# USER node
-
-# Copy package.json so that package manager commands can be used.
-# COPY package.json .
-
 # Copy the production dependencies from the deps stage and also
 # the built application from the build stage into the image.
-COPY --from=deps /usr/src/app/node_modules ./node_modules
-# COPY --from=build /usr/src/app/dist-electron ./dist-electron
-# FROM nginx:alpine as production-build
-# COPY nginx.conf /etc/nginx/nginx.conf
-# ## Remove default nginx index page
-# RUN rm -rf /usr/share/nginx/html/*
-# COPY --from=builder /dist /usr/share/nginx/html/nested-app
-# ENTRYPOINT ["nginx", "-g", "daemon off;"]
+# COPY --from=deps /usr/src/app/node_modules ./node_modules
+# COPY --from=build /usr/src/app/webapp/dist ./dist
+# Run the application.
+# CMD npm run webapp:dev -- --host
+FROM nginx:alpine as production-build
+RUN  touch /var/run/nginx.pid && \
+     chown -R nginx:nginx /var/cache/nginx /var/run/nginx.pid
+# Use production node environment by default.
+ENV NODE_ENV production
+# Copy package.json so that package manager commands can be used.
+COPY package.json .
+
+COPY nginx.conf /etc/nginx/nginx.conf
+## Remove default nginx index page
+RUN rm -rf /usr/share/nginx/html/*
+COPY --from=build /usr/src/app/webapp/dist /usr/share/nginx/html/heynote-app
+RUN chown -R nginx:nginx /usr/share/nginx/html/heynote-app
+RUN chmod -R 755 /usr/share/nginx/html/heynote-app
+
 # Expose the port that the application listens on.
 EXPOSE 5173
+# Run the application as a non-root user.
+USER nginx
+ENTRYPOINT ["nginx", "-g", "daemon off;"]
 
-# Run the application.
-CMD npm run webapp:dev -- --host
