@@ -4,13 +4,12 @@
 # If you need more help, visit the Dockerfile reference guide at
 # https://docs.docker.com/go/dockerfile-reference/
 
-# Want to help us make this template better? Share your feedback here: https://forms.gle/ybq9Krt8jtBL3iCk7
-
 ARG NODE_VERSION=21.6.2
 
 ################################################################################
 # Use node image for base image for all stages.
 FROM node:${NODE_VERSION}-alpine as base
+
 RUN apk update && apk add git
 # Set working directory for all build stages.
 WORKDIR /usr/src/app
@@ -33,6 +32,7 @@ RUN --mount=type=bind,source=package.json,target=package.json \
     npm ci --omit=dev
 
 RUN npm install
+
 ################################################################################
 # Create a stage for building the application.
 FROM deps as build
@@ -44,34 +44,25 @@ RUN --mount=type=bind,source=package.json,target=package.json \
     --mount=type=cache,target=/root/.npm \
     npm ci
 
-# Copy the rest of the source files into the image.
-# COPY . .
-
 # Run the build script.
 RUN npm run webapp:build
-
 
 ################################################################################
 # Create a new stage to run the application with minimal runtime dependencies
 # where the necessary files are copied from the build stage.
-# FROM base as final
 # Copy the production dependencies from the deps stage and also
 # the built application from the build stage into the image.
-# COPY --from=deps /usr/src/app/node_modules ./node_modules
-# COPY --from=build /usr/src/app/webapp/dist ./dist
-# Run the application.
-# CMD npm run webapp:dev -- --host
 FROM nginx:alpine as production-build
-RUN  touch /var/run/nginx.pid && \
-     chown -R nginx:nginx /var/cache/nginx /var/run/nginx.pid
+
 # Use production node environment by default.
 ENV NODE_ENV production
-# Copy package.json so that package manager commands can be used.
-COPY package.json .
-
+RUN  touch /var/run/nginx.pid && \
+     chown -R nginx:nginx /var/cache/nginx /var/run/nginx.pid
 COPY nginx.conf /etc/nginx/nginx.conf
 ## Remove default nginx index page
 RUN rm -rf /usr/share/nginx/html/*
+# Copy the production dependencies from the deps stage and also
+# the built application from the build stage into the image.
 COPY --from=build /usr/src/app/webapp/dist /usr/share/nginx/html/heynote-app
 RUN chown -R nginx:nginx /usr/share/nginx/html/heynote-app
 RUN chmod -R 755 /usr/share/nginx/html/heynote-app
@@ -81,4 +72,3 @@ EXPOSE 5173
 # Run the application as a non-root user.
 USER nginx
 ENTRYPOINT ["nginx", "-g", "daemon off;"]
-
