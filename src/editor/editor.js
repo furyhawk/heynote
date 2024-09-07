@@ -1,6 +1,6 @@
-import { Annotation, EditorState, Compartment } from "@codemirror/state"
+import { Annotation, EditorState, Compartment, Facet } from "@codemirror/state"
 import { EditorView, keymap, drawSelection, ViewPlugin, lineNumbers } from "@codemirror/view"
-import { indentUnit, forceParsing, foldGutter } from "@codemirror/language"
+import { indentUnit, forceParsing, foldGutter, ensureSyntaxTree } from "@codemirror/language"
 import { markdown } from "@codemirror/lang-markdown"
 import { closeBrackets } from "@codemirror/autocomplete";
 
@@ -59,6 +59,8 @@ export class HeynoteEditor {
         this.deselectOnCopy = keymap === "emacs"
         this.emacsMetaKey = emacsMetaKey
         this.fontTheme = new Compartment
+        this.defaultBlockToken = "text"
+        this.defaultBlockAutoDetect = true
 
         const state = EditorState.create({
             doc: content || "",
@@ -84,7 +86,7 @@ export class HeynoteEditor {
                 }),
                 heynoteLang(),
                 noteBlockExtension(this),
-                languageDetection(() => this.view),
+                languageDetection(() => this),
                 
                 // set cursor blink rate to 1 second
                 drawSelection({cursorBlinkRate:1000}),
@@ -113,6 +115,10 @@ export class HeynoteEditor {
             state: state,
             parent: element,
         })
+
+        // Ensure we have a parsed syntax tree when buffer is loaded. This prevents errors for large buffers
+        // when moving the cursor to the end of the buffer when the program starts
+        ensureSyntaxTree(state, state.doc.length, 5000)
 
         if (focus) {
             this.view.dispatch({
@@ -204,6 +210,11 @@ export class HeynoteEditor {
         this.view.dispatch({
             effects: this.closeBracketsCompartment.reconfigure(value ? [closeBrackets()] : []),
         })
+    }
+
+    setDefaultBlockLanguage(token, autoDetect) {
+        this.defaultBlockToken = token
+        this.defaultBlockAutoDetect = autoDetect
     }
 
     formatCurrentBlock() {
