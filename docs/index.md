@@ -1,6 +1,8 @@
 # Heynote Documentation
 
-Heynote is a dedicated scratchpad for developers. It functions as a large persistent text buffer where you can write down anything you like. Works great for that Slack message you don't want to accidentally send, a JSON response from an API you're working with, notes from a meeting, your daily to-do list, etc.
+[Changelog](/docs/changelog/)
+
+Heynote is a dedicated scratchpad for developers. It functions as a large persistent text buffer where you can write down anything you like. Works great for that Slack message you don't want to accidentally send, a JSON response from an API you're working with, notes from a meeting, your daily to-do list, etc. 
 
 The Heynote buffer is divided into blocks, and each block can have its own Language set (e.g. JavaScript, JSON, Markdown, etc.). This gives you syntax highlighting and lets you auto-format that JSON response.
 
@@ -36,6 +38,9 @@ Available for Mac, Windows, and Linux.
 ⌥ + Shift + Enter   Add new block at the start of the buffer
 ⌘ + ⌥ + Enter       Split the current block at cursor position
 ⌘ + L               Change block language
+⌘ + N               Create a new note buffer
+⌘ + S               Create a new note buffer from the current block
+⌘ + P               Open note selector
 ⌘ + Down            Goto next block
 ⌘ + Up              Goto previous block
 ⌘ + A               Select all text in a note block. Press again to select the whole buffer
@@ -52,6 +57,9 @@ Ctrl + Shift + Enter   Add new block at the end of the buffer
 Alt + Shift + Enter    Add new block at the start of the buffer
 Ctrl + Alt + Enter     Split the current block at cursor position
 Ctrl + L               Change block language
+Ctrl + N               Create a new note buffer
+Ctrl + S               Create a new note buffer from the current block
+Ctrl + P               Open note selector
 Ctrl + Down            Goto next block
 Ctrl + Up              Goto previous block
 Ctrl + A               Select all text in a note block. Press again to select the whole buffer
@@ -95,16 +103,27 @@ format(x) = x.toLocaleString();
 format(x) = x.toLocaleString('en-GB');
 ```
 
-
 See the [Math.js format()](https://mathjs.org/docs/reference/functions/format.html) function for more info on what's supported.
 
-## The buffer file
 
-The default paths for the buffer data for the respective operating systems are:
+## The notes library (only for Heynote 2.0, not yet released)
 
--   Mac: `~/Library/Application Support/Heynote/buffer.txt`
--   Windows: `%APPDATA%\Heynote\buffer.txt`
--   Linux: `~/.config/Heynote/buffer.txt`
+The notes library is a directory (with sub dirs) on the disk with a `.txt` file for each note. It's created the first time you start Heynote, with the default note file `scratch.txt` in it. The default location for the library is:
+
+-   Mac: `~/Library/Application Support/Heynote/notes/`
+-   Windows: `%APPDATA%\Heynote\notes\`
+-   Linux: `~/.config/Heynote/notes/`
+
+You can change the path of the notes library in the settings. Heynote expects reasonably fast disk access to the notes library, so it's not recommended to use a network drive, though file syncing services like Dropbox, OneDrive, etc. should work (see below).
+
+### Synchronizing the notes library
+
+Heynote is built to support synchronizing the notes library (or buffer file in the case of Heynote 1.x) through file-syncing services like Dropbox, OneDrive, etc. However, note that the synchronization logic is quite simple, so editing the same note on two different machines at the same time might lead to conflicts and unexpected results.
+
+When using a file synching service that support "offloading" of files in the cloud (removing them from the disk), it's recommended to mark the notes library as "always available offline".
+
+As always, backup things that are important.
+
 
 ## Linux
 
@@ -118,7 +137,7 @@ libnss3
 libnspr4
 ```
 
-#### Wayland
+### Wayland
 
 Due to [an issue in Electron](https://github.com/electron/electron/issues/38288), the global hotkey will not work in all applications running under Wayland. In KDE it is possible to work around this limitation by adding this Kwin script:
 
@@ -144,3 +163,4 @@ registerShortcut('toggleHeynote', 'Toggle Heynote', 'Ctrl+Shift+H', toggleHeynot
 See the [KWin scripting tutorial](https://develop.kde.org/docs/plasma/kwin/) for instructions on how to install the script.
 
 Remember to enable the script in the KDE System Settings. It may also be necessary to go into the KDE System Settings and bind the "Toggle Heynote" key manually.
+

@@ -1,8 +1,18 @@
 <script>
+    import { mapState, mapActions } from 'pinia'
+
+    import { mapWritableState } from 'pinia'
+    import { useHeynoteStore } from "../stores/heynote-store"
+    import { useErrorStore } from "../stores/error-store"
+
     import StatusBar from './StatusBar.vue'
     import Editor from './Editor.vue'
     import LanguageSelector from './LanguageSelector.vue'
+    import BufferSelector from './BufferSelector.vue'
     import Settings from './settings/Settings.vue'
+    import ErrorMessages from './ErrorMessages.vue'
+    import NewBuffer from './NewBuffer.vue'
+    import EditBuffer from './EditBuffer.vue'
 
     export default {
         components: {
@@ -10,20 +20,18 @@
             StatusBar,
             LanguageSelector,
             Settings,
+            BufferSelector,
+            ErrorMessages,
+            NewBuffer,
+            EditBuffer,
         },
 
         data() {
             return {
-                line: 1,
-                column: 1,
-                selectionSize: 0,
-                language: "plaintext",
-                languageAuto: true,
                 theme: window.heynote.themeMode.initial,
                 initialTheme: window.heynote.themeMode.initial,
                 themeSetting: 'system',
                 development: window.location.href.indexOf("dev=1") !== -1,
-                showLanguageSelector: false,
                 showSettings: false,
                 settings: window.heynote.settings,
             }
@@ -56,13 +64,69 @@
             window.heynote.themeMode.removeListener()
         },
 
+        watch: {
+            // when a dialog is closed, we want to focus the editor
+            showLanguageSelector(value) { this.dialogWatcher(value) },
+            showBufferSelector(value) { this.dialogWatcher(value) },
+            showCreateBuffer(value) { this.dialogWatcher(value) },
+            showEditBuffer(value) { this.dialogWatcher(value) },
+
+            currentBufferPath() {
+                this.focusEditor()
+            },
+
+            currentBufferName() {
+                window.heynote.setWindowTitle(this.currentBufferName)
+            },
+        },
+
+        computed: {
+            ...mapState(useHeynoteStore, [
+                "currentBufferPath",
+                "currentBufferName",
+                "showLanguageSelector",
+                "showBufferSelector",
+                "showCreateBuffer",
+                "showEditBuffer",
+            ]),
+
+            editorInert() {
+                return this.showCreateBuffer || this.showSettings || this.showEditBuffer
+            },
+        },
+
         methods: {
+            ...mapActions(useHeynoteStore, [
+                "openLanguageSelector",
+                "openBufferSelector",
+                "openCreateBuffer",
+                "closeDialog",
+                "closeBufferSelector",
+                "openBuffer",
+            ]),
+
+            // Used as a watcher for the booleans that control the visibility of editor dialogs. 
+            // When a dialog is closed, we want to focus the editor
+            dialogWatcher(value) {
+                if (!value) {
+                    this.focusEditor()
+                }
+            },
+
+            focusEditor() {
+                // we need to wait for the next tick for the cases when we set the inert attribute on the editor
+                // in which case issuing a focus() call immediately would not work 
+                this.$nextTick(() => {
+                    this.$refs.editor.focus()
+                })
+            },
+
             openSettings() {
                 this.showSettings = true
             },
             closeSettings() {
                 this.showSettings = false
-                this.$refs.editor.focus()
+                this.focusEditor()
             },
 
             toggleTheme() {
@@ -78,25 +142,13 @@
                 this.$refs.editor.focus()
             },
 
-            onCursorChange(e) {
-                this.line = e.cursorLine.line
-                this.column = e.cursorLine.col
-                this.selectionSize = e.selectionSize
-                this.language = e.language
-                this.languageAuto = e.languageAuto
-            },
-
-            openLanguageSelector() {
-                this.showLanguageSelector = true
-            },
-
-            closeLanguageSelector() {
-                this.showLanguageSelector = false
-                this.$refs.editor.focus()
+            setTheme(theme) {
+                window.heynote.themeMode.set(theme)
+                this.themeSetting = theme
             },
 
             onSelectLanguage(language) {
-                this.showLanguageSelector = false
+                this.closeDialog()
                 this.$refs.editor.setLanguage(language)
             },
 
@@ -111,7 +163,6 @@
 <template>
     <div class="container">
         <Editor 
-            @cursorChange="onCursorChange"
             :theme="theme"
             :development="development"
             :debugSyntaxTree="false"
@@ -124,37 +175,47 @@
             :fontSize="settings.fontSize"
             :defaultBlockLanguage="settings.defaultBlockLanguage || 'text'"
             :defaultBlockLanguageAutoDetect="settings.defaultBlockLanguageAutoDetect === undefined ? true : settings.defaultBlockLanguageAutoDetect"
+            :inert="editorInert"
             class="editor"
             ref="editor"
-            @openLanguageSelector="openLanguageSelector"
         />
         <StatusBar 
-            :line="line" 
-            :column="column" 
-            :selectionSize="selectionSize"
-            :language="language" 
-            :languageAuto="languageAuto"
-            :theme="theme"
-            :themeSetting="themeSetting"
             :autoUpdate="settings.autoUpdate"
             :allowBetaVersions="settings.allowBetaVersions"
-            @toggleTheme="toggleTheme"
+            @openBufferSelector="openBufferSelector"
             @openLanguageSelector="openLanguageSelector"
             @formatCurrentBlock="formatCurrentBlock"
             @openSettings="showSettings = true"
+            @click="() => {$refs.editor.focus()}"
             class="status" 
         />
         <div class="overlay">
             <LanguageSelector 
                 v-if="showLanguageSelector" 
                 @selectLanguage="onSelectLanguage"
-                @close="closeLanguageSelector"
+                @close="closeDialog"
+            />
+            <BufferSelector 
+                v-if="showBufferSelector" 
+                @openBuffer="openBuffer"
+                @close="closeBufferSelector"
             />
             <Settings 
                 v-if="showSettings"
                 :initialSettings="settings"
+                :themeSetting="themeSetting"
                 @closeSettings="closeSettings"
+                @setTheme="setTheme"
             />
+            <NewBuffer 
+                v-if="showCreateBuffer"
+                @close="closeDialog"
+            />
+            <EditBuffer 
+                v-if="showEditBuffer"
+                @close="closeDialog"
+            />
+            <ErrorMessages />
         </div>
     </div>
 </template>

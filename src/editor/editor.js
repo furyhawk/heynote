@@ -1,4 +1,4 @@
-import { Annotation, EditorState, Compartment, Facet } from "@codemirror/state"
+import { Annotation, EditorState, Compartment, Facet, EditorSelection, Transaction } from "@codemirror/state"
 import { EditorView, keymap, drawSelection, ViewPlugin, lineNumbers } from "@codemirror/view"
 import { indentUnit, forceParsing, foldGutter, ensureSyntaxTree } from "@codemirror/language"
 import { markdown } from "@codemirror/lang-markdown"
@@ -10,9 +10,9 @@ import { heynoteBase } from "./theme/base.js"
 import { getFontTheme } from "./theme/font-theme.js";
 import { customSetup } from "./setup.js"
 import { heynoteLang } from "./lang-heynote/heynote.js"
-import { noteBlockExtension, blockLineNumbers, blockState } from "./block/block.js"
-import { heynoteEvent, SET_CONTENT } from "./annotation.js";
-import { changeCurrentBlockLanguage, triggerCurrenciesLoaded } from "./block/commands.js"
+import { noteBlockExtension, blockLineNumbers, blockState, getActiveNoteBlock, triggerCursorChange } from "./block/block.js"
+import { heynoteEvent, SET_CONTENT, DELETE_BLOCK } from "./annotation.js";
+import { changeCurrentBlockLanguage, triggerCurrenciesLoaded, getBlockDelimiter, deleteBlock } from "./block/commands.js"
 import { formatBlockContent } from "./block/format-code.js"
 import { heynoteKeymap } from "./keymap.js"
 import { emacsKeymap } from "./emacs.js"
@@ -21,8 +21,11 @@ import { languageDetection } from "./language-detection/autodetect.js"
 import { autoSaveContent } from "./save.js"
 import { todoCheckboxPlugin} from "./todo-checkbox.ts"
 import { links } from "./links.js"
+import { NoteFormat } from "../common/note-format.js"
+import { AUTO_SAVE_INTERVAL } from "../common/constants.js"
+import { useHeynoteStore } from "../stores/heynote-store.js";
+import { useErrorStore } from "../stores/error-store.js";
 
-export const LANGUAGE_SELECTOR_EVENT = "openLanguageSelector"
 
 function getKeymapExtensions(editor, keymap) {
     if (keymap === "emacs") {
@@ -36,10 +39,10 @@ function getKeymapExtensions(editor, keymap) {
 export class HeynoteEditor {
     constructor({
         element, 
+        path,
         content, 
         focus=true, 
         theme="light", 
-        saveFunction=null, 
         keymap="default", 
         emacsMetaKey,
         showLineNumberGutter=true, 
@@ -47,8 +50,11 @@ export class HeynoteEditor {
         bracketClosing=false,
         fontFamily,
         fontSize,
+        defaultBlockToken,
+        defaultBlockAutoDetect,
     }) {
         this.element = element
+        this.path = path
         this.themeCompartment = new Compartment
         this.keymapCompartment = new Compartment
         this.lineNumberCompartmentPre = new Compartment
@@ -59,11 +65,15 @@ export class HeynoteEditor {
         this.deselectOnCopy = keymap === "emacs"
         this.emacsMetaKey = emacsMetaKey
         this.fontTheme = new Compartment
-        this.defaultBlockToken = "text"
-        this.defaultBlockAutoDetect = true
+        this.setDefaultBlockLanguage(defaultBlockToken, defaultBlockAutoDetect)
+        this.contentLoaded = false
+        this.notesStore = useHeynoteStore()
+        this.errorStore = useErrorStore()
+        this.name = ""
+        
 
         const state = EditorState.create({
-            doc: content || "",
+            doc: "",
             extensions: [
                 this.keymapCompartment.of(getKeymapExtensions(this, keymap)),
                 heynoteCopyCut(this),
@@ -86,7 +96,7 @@ export class HeynoteEditor {
                 }),
                 heynoteLang(),
                 noteBlockExtension(this),
-                languageDetection(() => this),
+                languageDetection(path, () => this),
                 
                 // set cursor blink rate to 1 second
                 drawSelection({cursorBlinkRate:1000}),
@@ -96,7 +106,7 @@ export class HeynoteEditor {
                     return {class: view.state.facet(EditorView.darkTheme) ? "dark-theme" : "light-theme"}
                 }),
 
-                saveFunction ? autoSaveContent(saveFunction, 2000) : [],
+                autoSaveContent(this, AUTO_SAVE_INTERVAL),
 
                 todoCheckboxPlugin,
                 markdown(),
@@ -105,47 +115,116 @@ export class HeynoteEditor {
         })
 
         // make sure saveFunction is called when page is unloaded
-        if (saveFunction) {
-            window.addEventListener("beforeunload", () => {
-                saveFunction(this.getContent())
-            })
-        }
+        window.addEventListener("beforeunload", () => {
+            this.save()
+        })
 
         this.view = new EditorView({
             state: state,
             parent: element,
         })
-
-        // Ensure we have a parsed syntax tree when buffer is loaded. This prevents errors for large buffers
-        // when moving the cursor to the end of the buffer when the program starts
-        ensureSyntaxTree(state, state.doc.length, 5000)
+        
+        //this.setContent(content)
+        this.setReadOnly(true)
+        this.loadContent().then(() => {
+            this.setReadOnly(false)
+        })
 
         if (focus) {
-            this.view.dispatch({
-                selection: {anchor: this.view.state.doc.length, head: this.view.state.doc.length},
-                scrollIntoView: true,
-            })
             this.view.focus()
         }
     }
 
+    async save() {
+        if (!this.contentLoaded) {
+            return
+        }
+        const content = this.getContent()
+        if (content === this.diskContent) {
+            return
+        }
+        //console.log("saving:", this.path)
+        this.diskContent = content
+        await window.heynote.buffer.save(this.path, content)
+    }
+
     getContent() {
-        return this.view.state.sliceDoc()
+        this.note.content = this.view.state.sliceDoc()
+        this.note.cursors = this.view.state.selection.toJSON()
+        
+        const ranges = this.note.cursors.ranges
+        if (ranges.length == 1 && ranges[0].anchor == 0 && ranges[0].head == 0) {
+            console.log("DEBUG!! Cursor is at 0,0")
+            console.trace()
+        }
+        return this.note.serialize()
+    }
+
+    async loadContent() {
+        //console.log("loading content", this.path)
+        const content = await window.heynote.buffer.load(this.path)
+        this.diskContent = content
+        this.contentLoaded = true
+        this.setContent(content)
+
+        // set up content change listener
+        this.onChange = (content) => {
+            this.diskContent = content
+            this.setContent(content)
+        }
+        window.heynote.buffer.addOnChangeCallback(this.path, this.onChange)
     }
 
     setContent(content) {
-        this.view.dispatch({
-            changes: {
-                from: 0,
-                to: this.view.state.doc.length,
-                insert: content,
-            },
-            annotations: [heynoteEvent.of(SET_CONTENT)],
+        try {
+            this.note = NoteFormat.load(content)
+            this.setReadOnly(false)
+        } catch (e) {
+            this.setReadOnly(true)
+            this.errorStore.addError(`Failed to load note: ${e.message}`)
+            throw new Error(`Failed to load note: ${e.message}`)
+        }
+        this.name = this.note.metadata?.name || this.path
+        
+        return new Promise((resolve) => {
+            // set buffer content
+            this.view.dispatch({
+                changes: {
+                    from: 0,
+                    to: this.view.state.doc.length,
+                    insert: this.note.content,
+                },
+                annotations: [heynoteEvent.of(SET_CONTENT), Transaction.addToHistory.of(false)],
+            })
+
+            // Ensure we have a parsed syntax tree when buffer is loaded. This prevents errors for large buffers
+            // when moving the cursor to the end of the buffer when the program starts
+            ensureSyntaxTree(this.view.state, this.view.state.doc.length, 5000)
+
+            // Set cursor positions
+            // We use requestAnimationFrame to avoid a race condition causing the scrollIntoView to sometimes not work
+            requestAnimationFrame(() => {
+                if (this.note.cursors) {
+                    this.view.dispatch({
+                        selection: EditorSelection.fromJSON(this.note.cursors),
+                        scrollIntoView: true,
+                    })
+                } else {
+                    // if metadata doesn't contain cursor position, we set the cursor to the end of the buffer
+                    this.view.dispatch({
+                        selection: {anchor: this.view.state.doc.length, head: this.view.state.doc.length},
+                        scrollIntoView: true,
+                    })
+                }
+                resolve()
+            })
         })
-        this.view.dispatch({
-            selection: {anchor: this.view.state.doc.length, head: this.view.state.doc.length},
-            scrollIntoView: true,
-        })
+    }
+
+    setName(name) {
+        this.note.metadata.name = name
+        this.name = name
+        triggerCursorChange(this.view)
     }
 
     getBlocks() {
@@ -187,7 +266,44 @@ export class HeynoteEditor {
     }
 
     openLanguageSelector() {
-        this.element.dispatchEvent(new Event(LANGUAGE_SELECTOR_EVENT))
+        this.notesStore.openLanguageSelector()
+    }
+
+    openBufferSelector() {
+        this.notesStore.openBufferSelector()
+    }
+
+    openCreateBuffer(createMode) {
+        this.notesStore.openCreateBuffer(createMode)
+    }
+
+    async createNewBuffer(path, name) {
+        const data = getBlockDelimiter(this.defaultBlockToken, this.defaultBlockAutoDetect)
+        await this.notesStore.saveNewBuffer(path, name, data)
+
+        // by using requestAnimationFrame we avoid a race condition where rendering the block backgrounds
+        // would fail if we immediately opened the new note (since the block UI wouldn't have time to update 
+        // after the block was deleted)
+        requestAnimationFrame(() => {
+            this.notesStore.openBuffer(path)
+        })
+    }
+
+    async createNewBufferFromActiveBlock(path, name) {
+        const block = getActiveNoteBlock(this.view.state)
+        if (!block) {
+            return
+        }
+        const data = this.view.state.sliceDoc(block.range.from, block.range.to)
+        await this.notesStore.saveNewBuffer(path, name, data)
+        deleteBlock(this)(this.view)
+
+        // by using requestAnimationFrame we avoid a race condition where rendering the block backgrounds
+        // would fail if we immediately opened the new note (since the block UI wouldn't have time to update 
+        // after the block was deleted)
+        requestAnimationFrame(() => {
+            this.notesStore.openBuffer(path)
+        })
     }
 
     setCurrentLanguage(lang, auto=false) {
@@ -226,6 +342,27 @@ export class HeynoteEditor {
 
     currenciesLoaded() {
         triggerCurrenciesLoaded(this.view.state, this.view.dispatch)
+    }
+
+    destroy(save=true) {
+        if (this.onChange) {
+            window.heynote.buffer.removeOnChangeCallback(this.path, this.onChange)
+        }
+        if (save) {
+            this.save()
+        }
+        this.view.destroy()
+        window.heynote.buffer.close(this.path)
+    }
+
+    hide() {
+        //console.log("hiding element", this.view.dom)
+        this.view.dom.style.setProperty("display", "none", "important")
+    }
+    show() {
+        //console.log("showing element", this.view.dom)
+        this.view.dom.style.setProperty("display", "")
+        triggerCursorChange(this.view)
     }
 }
 

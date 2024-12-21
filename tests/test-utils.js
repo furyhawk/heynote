@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { NoteFormat } from '../src/common/note-format.js';
 
 export function pageErrorGetter(page) {
     let messages = [];
@@ -26,8 +27,13 @@ export class HeynotePage {
         return await this.page.evaluate(() => window._heynote_editor.getBlocks())
     }
 
-    async getContent() {
+    async getBufferData() {
         return await this.page.evaluate(() => window._heynote_editor.getContent())
+    }
+
+    async getContent() {
+        const note = NoteFormat.load(await this.getBufferData())
+        return note.content
     }
 
     async setContent(content) {
@@ -49,5 +55,17 @@ export class HeynotePage {
 
     async getStoredSettings() {
         return await this.page.evaluate(() => JSON.parse(window.localStorage.getItem("settings")))
+    }
+
+    async getStoredBufferList() {
+        return await this.page.evaluate(() => window.heynote.buffer.getList())
+    }
+
+    async getStoredBuffer(path) {
+        return await this.page.evaluate((path) => window.heynote.buffer.load(path), path)
+    }
+
+    agnosticKey(key) {
+        return key.replace("Mod", this.isMac ? "Meta" : "Control")
     }
 }

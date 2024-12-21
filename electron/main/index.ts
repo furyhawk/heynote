@@ -9,7 +9,13 @@ import CONFIG from "../config"
 import { isDev, isLinux, isMac, isWindows } from '../detect-platform';
 import { initializeAutoUpdate, checkForUpdates } from './auto-update';
 import { fixElectronCors } from './cors';
-import { loadBuffer, contentSaved } from './buffer';
+import { 
+    FileLibrary, 
+    setupFileLibraryEventHandlers, 
+    setCurrentFileLibrary, 
+    migrateBufferFileToLibrary, 
+    NOTES_DIR_NAME 
+} from './file-library';
 
 
 // The built directory structure
@@ -49,7 +55,9 @@ Menu.setApplicationMenu(menu)
 // process.env['ELECTRON_DISABLE_SECURITY_WARNINGS'] = 'true'
 
 export let win: BrowserWindow | null = null
+let fileLibrary: FileLibrary | null = null
 let tray: Tray | null = null;
+let initErrors: string[] = []
 // Here, you can also use other preload
 const preload = join(__dirname, '../preload/index.js')
 const url = process.env.VITE_DEV_SERVER_URL
@@ -106,9 +114,17 @@ async function createWindow() {
         }
     }
 
+    const pngSystems: NodeJS.Platform[] = ["linux", "freebsd", "openbsd", "netbsd"]
+    const icon = join(
+        process.env.PUBLIC,
+        pngSystems.includes(process.platform)
+            ? "favicon-linux.png"
+            : "favicon.ico",
+    )
+
     win = new BrowserWindow(Object.assign({
         title: 'heynote',
-        icon: join(process.env.PUBLIC, 'favicon.ico'),
+        icon,
         backgroundColor: nativeTheme.shouldUseDarkColors ? '#262B37' : '#FFFFFF',
         //titleBarStyle: 'customButtonsOnHover',
         autoHideMenuBar: true,
@@ -138,7 +154,7 @@ async function createWindow() {
         }
         // Prevent the window from closing, and send a message to the renderer which will in turn
         // send a message to the main process to save the current buffer and close the window.
-        if (!contentSaved) {
+        if (!!fileLibrary && !fileLibrary.contentSaved) {
             event.preventDefault()
             win?.webContents.send(WINDOW_CLOSE_EVENT)
         } else {
@@ -307,6 +323,9 @@ function registerAlwaysOnTop() {
 }
 
 app.whenReady().then(createWindow).then(async () => {
+    initFileLibrary(win).then(() => {
+        setupFileLibraryEventHandlers()
+    })
     initializeAutoUpdate(win)
     registerGlobalHotkey()
     registerShowInDock()
@@ -348,8 +367,36 @@ ipcMain.handle('dark-mode:set', (event, mode) => {
 
 ipcMain.handle('dark-mode:get', () => nativeTheme.themeSource)
 
-// load buffer on app start
-loadBuffer()
+ipcMain.handle("setWindowTitle", (event, title) => {
+    win?.setTitle(title)
+})
+
+// Initialize note/file library
+async function initFileLibrary(win) {
+    await migrateBufferFileToLibrary(app)
+    
+    const customLibraryPath = CONFIG.get("settings.bufferPath")
+    const defaultLibraryPath = join(app.getPath("userData"), NOTES_DIR_NAME)
+    const libraryPath = customLibraryPath ? customLibraryPath : defaultLibraryPath
+    //console.log("libraryPath", libraryPath)
+
+    // if we're using the default library path, and it doesn't exist (e.g. first time run), create it
+    if (!customLibraryPath && !fs.existsSync(defaultLibraryPath)) {
+        fs.mkdirSync(defaultLibraryPath)
+    }
+
+    try {
+        fileLibrary = new FileLibrary(libraryPath, win)
+        fileLibrary.setupWatcher()
+    } catch (error) {
+        initErrors.push(`Error: ${error.message}`)
+    }
+    setCurrentFileLibrary(fileLibrary)
+}
+
+ipcMain.handle("getInitErrors", () => {
+    return initErrors
+})
 
 
 ipcMain.handle('settings:set', async (event, settings) => {
@@ -378,9 +425,10 @@ ipcMain.handle('settings:set', async (event, settings) => {
         registerAlwaysOnTop()
     }
     if (bufferPathChanged) {
-        const buffer = loadBuffer()
-        if (buffer.exists()) {
-            win?.webContents.send("buffer-content:change", await buffer.load())
-        }
+        console.log("bufferPath changed, closing existing file library")
+        fileLibrary.close()
+        console.log("initializing new file library")
+        initFileLibrary(win)
+        await win.webContents.send("library:pathChanged")
     }
 })
