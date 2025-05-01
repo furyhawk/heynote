@@ -27,6 +27,8 @@ export const useHeynoteStore = defineStore("heynote", {
         showLanguageSelector: false,
         showCreateBuffer: false,
         showEditBuffer: false,
+        showMoveToBufferSelector: false,
+        showCommandPalette: false,
     }),
 
     actions: {
@@ -41,7 +43,10 @@ export const useHeynoteStore = defineStore("heynote", {
         openBuffer(path) {
             this.closeDialog()
             this.currentBufferPath = path
+            this.addRecentBuffer(path)
+        },
 
+        addRecentBuffer(path) {
             const recent = this.recentBufferPaths.filter((p) => p !== path)
             recent.unshift(path)
             this.recentBufferPaths = recent.slice(0, 100)
@@ -54,6 +59,15 @@ export const useHeynoteStore = defineStore("heynote", {
         openBufferSelector() {
             this.closeDialog()
             this.showBufferSelector = true
+            
+        },
+        openCommandPalette() {
+            this.closeDialog()
+            this.showCommandPalette = true
+        },
+        openMoveToBufferSelector() {
+            this.closeDialog()
+            this.showMoveToBufferSelector = true
         },
         openCreateBuffer(createMode, nameSuggestion) {
             createMode = createMode || "new"
@@ -69,10 +83,17 @@ export const useHeynoteStore = defineStore("heynote", {
             this.showBufferSelector = false
             this.showLanguageSelector = false
             this.showEditBuffer = false
+            this.showMoveToBufferSelector = false
+            this.showCommandPalette = false
         },
 
         closeBufferSelector() {
             this.showBufferSelector = false
+            this.showCommandPalette = false
+        },
+
+        closeMoveToBufferSelector() {
+            this.showMoveToBufferSelector = false
         },
 
         editBufferMetadata(path) {
@@ -81,6 +102,13 @@ export const useHeynoteStore = defineStore("heynote", {
             }
             this.closeDialog()
             this.showEditBuffer = true
+        },
+
+
+        executeCommand(command) {
+            if (this.currentEditor) {
+                toRaw(this.currentEditor).executeCommand(command)
+            }
         },
 
         /**

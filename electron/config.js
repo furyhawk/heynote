@@ -24,6 +24,19 @@ const schema = {
         properties: {
             "keymap": { "enum": ["default", "emacs"], default:"default" },
             "emacsMetaKey": { "enum": [null, "alt", "meta"], default: null },
+            "keyBindings": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "required": ["key", "command"],
+                    "properties": {
+                        "key": { "type": "string" },
+                        "command": { "type": "string" }
+                    },
+                    "additionalProperties": false
+                }
+            },
+
             "showLineNumberGutter": {type: "boolean", default:true},
             "showFoldGutter": {type: "boolean", default:true},
             "autoUpdate": {type: "boolean", default: true},
@@ -35,6 +48,8 @@ const schema = {
             "showInMenu": {type: "boolean", default: false},
             "alwaysOnTop": {type: "boolean", default: false},
             "bracketClosing": {type: "boolean", default: false},
+            "indentType": {type: "string", default: "space"},
+            "tabSize": {type: "integer", default: 4},
             "defaultBlockLanguage": {type: "string"},
             "defaultBlockLanguageAutoDetect": {type: "boolean"},
 
@@ -61,6 +76,7 @@ const defaults = {
     settings: {
         keymap: "default",
         emacsMetaKey: isMac ? "meta" : "alt",
+        keyBindings: [],
         showLineNumberGutter: true,
         showFoldGutter: true,
         autoUpdate: true,
@@ -72,6 +88,8 @@ const defaults = {
         showInMenu: false,
         alwaysOnTop: false,
         bracketClosing: false,
+        indentType: "space",
+        tabSize: 4,
     },
     theme: "system",
 }

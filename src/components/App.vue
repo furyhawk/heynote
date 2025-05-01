@@ -1,9 +1,13 @@
 <script>
     import { mapState, mapActions } from 'pinia'
 
-    import { mapWritableState } from 'pinia'
+    import { mapWritableState, mapStores } from 'pinia'
     import { useHeynoteStore } from "../stores/heynote-store"
     import { useErrorStore } from "../stores/error-store"
+    import { useSettingsStore } from "../stores/settings-store"
+    import { useEditorCacheStore } from '../stores/editor-cache'
+
+    import { OPEN_SETTINGS_EVENT, MOVE_BLOCK_EVENT, CHANGE_BUFFER_EVENT } from '@/src/common/constants'
 
     import StatusBar from './StatusBar.vue'
     import Editor from './Editor.vue'
@@ -28,9 +32,6 @@
 
         data() {
             return {
-                theme: window.heynote.themeMode.initial,
-                initialTheme: window.heynote.themeMode.initial,
-                themeSetting: 'system',
                 development: window.location.href.indexOf("dev=1") !== -1,
                 showSettings: false,
                 settings: window.heynote.settings,
@@ -38,30 +39,23 @@
         },
 
         mounted() {
-            window.heynote.themeMode.get().then((mode) => {
-                this.theme = mode.computed
-                this.themeSetting = mode.theme
-            })
-            const onThemeChange = (theme) => {
-                this.theme = theme
-                if (theme === "system") {
-                    document.documentElement.setAttribute("theme", window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light")
-                } else {
-                    document.documentElement.setAttribute("theme", theme)
-                }
-            }
-            onThemeChange(window.heynote.themeMode.initial)
-            window.heynote.themeMode.onChange(onThemeChange)
-            window.heynote.onSettingsChange((settings) => {
-                this.settings = settings
-            })
-            window.heynote.onOpenSettings(() => {
+            this.settingsStore.setUp()
+            
+            window.heynote.mainProcess.on(OPEN_SETTINGS_EVENT, () => {
                 this.showSettings = true
+            })
+
+            window.heynote.mainProcess.on(MOVE_BLOCK_EVENT, (path) => {
+                this.openMoveToBufferSelector()
+            })
+
+            window.heynote.mainProcess.on(CHANGE_BUFFER_EVENT, () => {
+                this.openBufferSelector()
             })
         },
 
         beforeUnmount() {
-            window.heynote.themeMode.removeListener()
+            this.settingsStore.tearDown()
         },
 
         watch: {
@@ -70,6 +64,8 @@
             showBufferSelector(value) { this.dialogWatcher(value) },
             showCreateBuffer(value) { this.dialogWatcher(value) },
             showEditBuffer(value) { this.dialogWatcher(value) },
+            showMoveToBufferSelector(value) { this.dialogWatcher(value) },
+            showCommandPalette(value) { this.dialogWatcher(value) },
 
             currentBufferPath() {
                 this.focusEditor()
@@ -81,6 +77,7 @@
         },
 
         computed: {
+            ...mapStores(useSettingsStore, useEditorCacheStore),
             ...mapState(useHeynoteStore, [
                 "currentBufferPath",
                 "currentBufferName",
@@ -88,10 +85,16 @@
                 "showBufferSelector",
                 "showCreateBuffer",
                 "showEditBuffer",
+                "showMoveToBufferSelector",
+                "showCommandPalette",
             ]),
 
+            dialogVisible() {
+                return this.showLanguageSelector || this.showBufferSelector || this.showCreateBuffer || this.showEditBuffer || this.showMoveToBufferSelector || this.showCommandPalette || this.showSettings
+            },
+
             editorInert() {
-                return this.showCreateBuffer || this.showSettings || this.showEditBuffer
+                return this.dialogVisible
             },
         },
 
@@ -103,6 +106,7 @@
                 "closeDialog",
                 "closeBufferSelector",
                 "openBuffer",
+                "closeMoveToBufferSelector",
             ]),
 
             // Used as a watcher for the booleans that control the visibility of editor dialogs. 
@@ -129,24 +133,6 @@
                 this.focusEditor()
             },
 
-            toggleTheme() {
-                let newTheme
-                // when the "system" theme is used, make sure that the first click always results in amn actual theme change
-                if (this.initialTheme === "light") {
-                    newTheme = this.themeSetting === "system" ? "dark" : (this.themeSetting === "dark" ? "light" : "system")
-                } else {
-                    newTheme = this.themeSetting === "system" ? "light" : (this.themeSetting === "light" ? "dark" : "system")
-                }
-                window.heynote.themeMode.set(newTheme)
-                this.themeSetting = newTheme
-                this.$refs.editor.focus()
-            },
-
-            setTheme(theme) {
-                window.heynote.themeMode.set(theme)
-                this.themeSetting = theme
-            },
-
             onSelectLanguage(language) {
                 this.closeDialog()
                 this.$refs.editor.setLanguage(language)
@@ -154,6 +140,11 @@
 
             formatCurrentBlock() {
                 this.$refs.editor.formatCurrentBlock()
+            },
+
+            onMoveCurrentBlockToOtherEditor(path) {
+                this.editorCacheStore.moveCurrentBlockToOtherEditor(path)
+                this.closeMoveToBufferSelector()
             },
         },
     }
@@ -163,18 +154,9 @@
 <template>
     <div class="container">
         <Editor 
-            :theme="theme"
+            :theme="settingsStore.theme"
             :development="development"
             :debugSyntaxTree="false"
-            :keymap="settings.keymap"
-            :emacsMetaKey="settings.emacsMetaKey"
-            :showLineNumberGutter="settings.showLineNumberGutter"
-            :showFoldGutter="settings.showFoldGutter"
-            :bracketClosing="settings.bracketClosing"
-            :fontFamily="settings.fontFamily"
-            :fontSize="settings.fontSize"
-            :defaultBlockLanguage="settings.defaultBlockLanguage || 'text'"
-            :defaultBlockLanguageAutoDetect="settings.defaultBlockLanguageAutoDetect === undefined ? true : settings.defaultBlockLanguageAutoDetect"
             :inert="editorInert"
             class="editor"
             ref="editor"
@@ -196,16 +178,27 @@
                 @close="closeDialog"
             />
             <BufferSelector 
-                v-if="showBufferSelector" 
+                v-if="showBufferSelector || showCommandPalette" 
+                :initialFilter="showCommandPalette ? '>' : ''"
+                :commandsEnabled="true"
                 @openBuffer="openBuffer"
+                @openCreateBuffer="(nameSuggestion) => openCreateBuffer('new', nameSuggestion)"
                 @close="closeBufferSelector"
+            />
+            <BufferSelector 
+                v-if="showMoveToBufferSelector" 
+                headline="Move block to..."
+                :commandsEnabled="false"
+                @openBuffer="onMoveCurrentBlockToOtherEditor"
+                @openCreateBuffer="(nameSuggestion) => openCreateBuffer('currentBlock', nameSuggestion)"
+                @close="closeMoveToBufferSelector"
             />
             <Settings 
                 v-if="showSettings"
-                :initialSettings="settings"
-                :themeSetting="themeSetting"
+                :initialSettings="settingsStore.settings"
+                :themeSetting="settingsStore.themeSetting"
                 @closeSettings="closeSettings"
-                @setTheme="setTheme"
+                @setTheme="settingsStore.setTheme"
             />
             <NewBuffer 
                 v-if="showCreateBuffer"

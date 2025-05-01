@@ -3,8 +3,9 @@ import { release } from 'node:os'
 import { join } from 'node:path'
 import fs from "fs"
 
-import { menu, getTrayMenu } from './menu'
-import { WINDOW_CLOSE_EVENT, SETTINGS_CHANGE_EVENT } from '../constants';
+import { WINDOW_CLOSE_EVENT, SETTINGS_CHANGE_EVENT } from '@/src/common/constants'
+
+import { menu, getTrayMenu, getEditorContextMenu } from './menu'
 import CONFIG from "../config"
 import { isDev, isLinux, isMac, isWindows } from '../detect-platform';
 import { initializeAutoUpdate, checkForUpdates } from './auto-update';
@@ -63,8 +64,6 @@ const preload = join(__dirname, '../preload/index.js')
 const url = process.env.VITE_DEV_SERVER_URL
 const indexHtml = join(process.env.DIST, 'index.html')
 
-let currentKeymap = CONFIG.get("settings.keymap")
-
 // if this version is a beta version, set the release channel to beta
 const isBetaVersion = app.getVersion().includes("beta")
 if (isBetaVersion) {
@@ -84,8 +83,8 @@ export function quit() {
 async function createWindow() {
     // read any stored window settings from config, or use defaults
     let windowConfig = {
-        width: CONFIG.get("windowConfig.width", 900) as number,
-        height: CONFIG.get("windowConfig.height", 680) as number,
+        width: CONFIG.get("windowConfig.width", 940) as number,
+        height: CONFIG.get("windowConfig.height", 720) as number,
         isMaximized: CONFIG.get("windowConfig.isMaximized", false) as boolean,
         isFullScreen: CONFIG.get("windowConfig.isFullScreen", false) as boolean,
         x: CONFIG.get("windowConfig.x"),
@@ -351,10 +350,14 @@ app.on('second-instance', () => {
     }
 })
 
-app.on('activate', () => {
+app.on('activate', (event, hasVisibleWindows) => {
     const allWindows = BrowserWindow.getAllWindows()
     if (allWindows.length) {
         allWindows[0].focus()
+        // show the window if it's hidden (e.g. the window was closed with "show in menu bar" setting turned on)
+        if (!allWindows[0].isVisible()) {
+            allWindows[0].show()
+        }
     } else {
         createWindow()
     }
@@ -369,6 +372,10 @@ ipcMain.handle('dark-mode:get', () => nativeTheme.themeSource)
 
 ipcMain.handle("setWindowTitle", (event, title) => {
     win?.setTitle(title)
+})
+
+ipcMain.handle("showEditorContextMenu", () =>  {
+    getEditorContextMenu(win).popup({window:win});
 })
 
 // Initialize note/file library
@@ -400,9 +407,6 @@ ipcMain.handle("getInitErrors", () => {
 
 
 ipcMain.handle('settings:set', async (event, settings) => {
-    if (settings.keymap !== CONFIG.get("settings.keymap")) {
-        currentKeymap = settings.keymap
-    }
     let globalHotkeyChanged = settings.enableGlobalHotkey !== CONFIG.get("settings.enableGlobalHotkey") || settings.globalHotkey !== CONFIG.get("settings.globalHotkey")
     let showInDockChanged = settings.showInDock !== CONFIG.get("settings.showInDock");
     let showInMenuChanged = settings.showInMenu !== CONFIG.get("settings.showInMenu");

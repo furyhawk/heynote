@@ -1,9 +1,11 @@
 <script>
+    import { toRaw} from 'vue';
     import { LANGUAGES } from '../../editor/languages.js'
 
     import KeyboardHotkey from "./KeyboardHotkey.vue"
     import TabListItem from "./TabListItem.vue"
     import TabContent from "./TabContent.vue"
+    import KeyboardBindings from './KeyboardBindings.vue'
 
     const defaultFontFamily = window.heynote.defaultFontFamily
     const defaultFontSize = window.heynote.defaultFontSize
@@ -20,15 +22,18 @@
             KeyboardHotkey,
             TabListItem,
             TabContent,
+            KeyboardBindings,
         },
 
         data() {
+            //console.log("settings:", this.initialSettings)
             return {
                 keymaps: [
                     { name: "Default", value: "default" },
                     { name: "Emacs", value: "emacs" },
                 ],
                 keymap: this.initialSettings.keymap,
+                keyBindings: this.initialSettings.keyBindings,
                 metaKey: this.initialSettings.emacsMetaKey,
                 isMac: window.heynote.platform.isMac,
                 showLineNumberGutter: this.initialSettings.showLineNumberGutter,
@@ -40,6 +45,8 @@
                 showInMenu: this.initialSettings.showInMenu,
                 alwaysOnTop: this.initialSettings.alwaysOnTop,
                 bracketClosing: this.initialSettings.bracketClosing,
+                indentType: this.initialSettings.indentType || "space",
+                tabSize: this.initialSettings.tabSize || 4,
                 autoUpdate: this.initialSettings.autoUpdate,
                 bufferPath: this.initialSettings.bufferPath,
                 fontFamily: this.initialSettings.fontFamily || defaultFontFamily,
@@ -62,28 +69,36 @@
                 defaultFontSize: defaultFontSize,
                 appVersion: "",
                 theme: this.themeSetting,
+
+                // tracks if the add key binding dialog is visible (so that we can set inert on the save button)
+                addKeyBindingDialogVisible: false,
             }
         },
 
         async mounted() {
+            window.addEventListener("keydown", this.onKeyDown);
+
+            this.appVersion = await window.heynote.getVersion()
+
             if (window.queryLocalFonts !== undefined) {
                 let localFonts = [... new Set((await window.queryLocalFonts()).map(f => f.family))].filter(f => f !== "Hack")
                 localFonts = [...new Set(localFonts)].map(f => [f, f])
                 this.systemFonts = [[defaultFontFamily, defaultFontFamily + " (default)"], ...localFonts]
             }
-
-            window.addEventListener("keydown", this.onKeyDown);
-            this.$refs.keymapSelector.focus()
-
-            this.appVersion = await window.heynote.getVersion()
         },
         beforeUnmount() {
             window.removeEventListener("keydown", this.onKeyDown);
         },
 
+        watch: {
+            keyBindings(newKeyBindings) {
+                this.updateSettings()
+            }
+        },
+
         methods: {
             onKeyDown(event) {
-                if (event.key === "Escape") {
+                if (event.key === "Escape" && !this.addKeyBindingDialogVisible) {
                     this.$emit("closeSettings")
                 }
             },
@@ -93,6 +108,7 @@
                     showLineNumberGutter: this.showLineNumberGutter,
                     showFoldGutter: this.showFoldGutter,
                     keymap: this.keymap,
+                    keyBindings: this.keyBindings.map((kb) => toRaw(kb)),
                     emacsMetaKey: window.heynote.platform.isMac ? this.metaKey : "alt",
                     allowBetaVersions: this.allowBetaVersions,
                     enableGlobalHotkey: this.enableGlobalHotkey,
@@ -102,6 +118,8 @@
                     alwaysOnTop: this.alwaysOnTop,
                     autoUpdate: this.autoUpdate,
                     bracketClosing: this.bracketClosing,
+                    indentType: this.indentType,
+                    tabSize: this.tabSize,
                     bufferPath: this.bufferPath,
                     fontFamily: this.fontFamily === defaultFontFamily ? undefined : this.fontFamily,
                     fontSize: this.fontSize === defaultFontSize ? undefined : this.fontSize,
@@ -160,6 +178,12 @@
                             @click="activeTab = 'appearance'"
                         />
                         <TabListItem 
+                            name="Key Bindings" 
+                            tab="keyboard-bindings" 
+                            :activeTab="activeTab" 
+                            @click="activeTab = 'keyboard-bindings'"
+                        />
+                        <TabListItem 
                             :name="isWebApp ? 'Version' : 'Updates'" 
                             tab="updates" 
                             :activeTab="activeTab" 
@@ -169,23 +193,6 @@
                 </nav>
                 <div class="settings-content">
                     <TabContent tab="general" :activeTab="activeTab">
-                        <div class="row">
-                            <div class="entry">
-                                <h2>Keymap</h2>
-                                <select ref="keymapSelector" v-model="keymap" @change="updateSettings" class="keymap">
-                                    <template v-for="km in keymaps" :key="km.value">
-                                        <option :selected="km.value === keymap" :value="km.value">{{ km.name }}</option>
-                                    </template>
-                                </select>
-                            </div>
-                            <div class="entry" v-if="keymap === 'emacs' && isMac">
-                                <h2>Meta Key</h2>
-                                <select v-model="metaKey" @change="updateSettings" class="metaKey">
-                                    <option :selected="metaKey === 'meta'" value="meta">Command</option>
-                                    <option :selected="metaKey === 'alt'" value="alt">Option</option>
-                                </select>
-                            </div>
-                        </div>
                         <div class="row" v-if="!isWebApp">
                             <div class="entry">
                                 <h2>Global Keyboard Shortcut</h2>
@@ -242,14 +249,14 @@
                         </div>
                         <div class="row" v-if="!isWebApp">
                             <div class="entry buffer-location">
-                                <h2>Buffer File Path</h2>
+                                <h2>Buffer Files Path</h2>
                                 <label class="keyboard-shortcut-label">
                                     <input 
                                         type="checkbox" 
                                         v-model="customBufferLocation" 
                                         @change="onCustomBufferLocationChange"
                                     />
-                                    Use custom buffer file location
+                                    Use custom location for the buffer files
                                 </label>
                                 <div class="file-path">
                                     <button
@@ -275,6 +282,26 @@
                                     Auto-close brackets and quotation marks
                                 </label>
                             </div>  
+                        </div>
+                        <div class="row">
+                            <div class="entry">
+                                <h2>Tab Size</h2>
+                                <select v-model="tabSize" @change="updateSettings" class="tab-size">
+                                    <option
+                                        v-for="size in [1, 2, 3, 4, 5, 6, 7, 8]"
+                                        :key="size"
+                                        :selected="tabSize === size"
+                                        :value="size"
+                                    >{{ size }} {{ size === 1 ? 'space' : 'spaces' }}</option>
+                                </select>
+                            </div>
+                            <div class="entry">
+                                <h2>Indent Using</h2>
+                                <select v-model="indentType" @change="updateSettings" class="indent-type">
+                                    <option value="space" :selected="indentType === 'space'">Spaces</option>
+                                    <option value="tab" :selected="indentType === 'tab'">Tabs</option>
+                                </select>
+                            </div>
                         </div>
                         <div class="row">
                             <div class="entry">
@@ -353,6 +380,31 @@
                             </div>
                         </div>
                     </TabContent>
+
+                    <TabContent tab="keyboard-bindings" :activeTab="activeTab">
+                        <div class="row">
+                            <div class="entry">
+                                <h2>Keymap</h2>
+                                <select v-model="keymap" @change="updateSettings" class="keymap">
+                                    <template v-for="km in keymaps" :key="km.value">
+                                        <option :selected="km.value === keymap" :value="km.value">{{ km.name }}</option>
+                                    </template>
+                                </select>
+                            </div>
+                            <div class="entry" v-if="keymap === 'emacs' && isMac">
+                                <h2>Meta Key</h2>
+                                <select v-model="metaKey" @change="updateSettings" class="metaKey">
+                                    <option :selected="metaKey === 'meta'" value="meta">Command</option>
+                                    <option :selected="metaKey === 'alt'" value="alt">Option</option>
+                                </select>
+                            </div>
+                        </div>
+                        <KeyboardBindings 
+                            :userKeys="keyBindings ? keyBindings : {}"
+                            v-model="keyBindings"
+                            @addKeyBindingDialogVisible="addKeyBindingDialogVisible = $event"
+                        />
+                    </TabContent>
                     
                     <TabContent tab="updates" :activeTab="activeTab">
                         <div class="row">
@@ -392,7 +444,7 @@
                 </div>
             </div>
             
-            <div class="bottom-bar">
+            <div class="bottom-bar" :inert="addKeyBindingDialogVisible">
                 <button 
                     @click="$emit('closeSettings')"
                     class="close"
@@ -421,14 +473,16 @@
             background: rgba(0, 0, 0, 0.5)
         
         .dialog
+            --dialog-height: 600px
+            --bottom-bar-height: 48px
             box-sizing: border-box
             z-index: 2
             position: absolute
             left: 50%
             top: 50%
             transform: translate(-50%, -50%)
-            width: 700px
-            height: 560px
+            width: 820px
+            height: var(--dialog-height)
             max-width: 100%
             max-height: 100%
             display: flex
@@ -448,6 +502,7 @@
             .dialog-content
                 flex-grow: 1
                 display: flex
+                height: calc(var(--dialog-height) - var(--bottom-bar-height))
                 .sidebar
                     box-sizing: border-box
                     width: 140px
@@ -465,6 +520,7 @@
                     flex-grow: 1
                     padding: 40px
                     overflow-y: auto
+                    position: relative
                     select
                         height: 22px
                         margin: 4px 0
@@ -521,6 +577,8 @@
                                         background: #222
                                         color: #aaa
             .bottom-bar
+                box-sizing: border-box
+                height: var(--bottom-bar-height)
                 border-radius: 0 0 5px 5px
                 background: #eee
                 text-align: right
@@ -529,4 +587,5 @@
                     background: #222
                 .close
                     height: 28px
+                    cursor: pointer
 </style>

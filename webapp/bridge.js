@@ -1,5 +1,5 @@
 import { Exception } from "sass";
-import { SETTINGS_CHANGE_EVENT, OPEN_SETTINGS_EVENT } from "../electron/constants";
+import { SETTINGS_CHANGE_EVENT, OPEN_SETTINGS_EVENT } from "@/src/common/constants";
 import { NoteFormat } from "../src/common/note-format";
 
 const NOTE_KEY_PREFIX = "heynote-library__"
@@ -64,6 +64,12 @@ class IpcRenderer {
         this.callbacks[event].push(callback)
     }
 
+    off(event, callback) {
+        if (this.callbacks[event]) {
+            this.callbacks[event] = this.callbacks[event].filter(cb => cb !== callback)
+        }
+    }
+
     send(event, ...args) {
         if (this.callbacks[event]) {
             for (const callback of this.callbacks[event]) {
@@ -83,6 +89,7 @@ let initialSettings = {
     showLineNumberGutter: true,
     showFoldGutter: true,
     bracketClosing: false,
+    keyBindings: [],
 }
 if (settingsData !== null) {
     initialSettings = Object.assign(initialSettings, JSON.parse(settingsData))
@@ -211,21 +218,25 @@ const Heynote = {
         removeOnChangeCallback(path, callback) {
             
         },
+
+        pathSeparator: "/",
     },
 
-    onWindowClose(callback) {
-        //ipcRenderer.on(WINDOW_CLOSE_EVENT, callback)
+    mainProcess: {
+        on(event, callback) {
+            ipcRenderer.on(event, callback)
+        },
+        
+        off(event, callback) {
+            ipcRenderer.off(event, callback)
+        },
+
+        invoke(event, ...args) {
+            
+        }
     },
 
     settings: initialSettings,
-
-    onOpenSettings(callback) {
-        ipcRenderer.on(OPEN_SETTINGS_EVENT, callback)
-    },
-
-    onSettingsChange(callback) {
-        ipcRenderer.on(SETTINGS_CHANGE_EVENT, (event, settings) => callback(settings))
-    },
 
     setSettings(settings) {
         localStorage.setItem("settings", JSON.stringify(settings))

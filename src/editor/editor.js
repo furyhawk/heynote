@@ -1,8 +1,8 @@
-import { Annotation, EditorState, Compartment, Facet, EditorSelection, Transaction } from "@codemirror/state"
-import { EditorView, keymap, drawSelection, ViewPlugin, lineNumbers } from "@codemirror/view"
-import { indentUnit, forceParsing, foldGutter, ensureSyntaxTree } from "@codemirror/language"
-import { markdown } from "@codemirror/lang-markdown"
-import { closeBrackets } from "@codemirror/autocomplete";
+import { Annotation, EditorState, Compartment, Facet, EditorSelection, Transaction, Prec } from "@codemirror/state"
+import { EditorView, keymap as cmKeymap, drawSelection, ViewPlugin, lineNumbers } from "@codemirror/view"
+import { foldGutter, ensureSyntaxTree } from "@codemirror/language"
+import { markdown, markdownKeymap } from "@codemirror/lang-markdown"
+import { undo, redo } from "@codemirror/commands"
 
 import { heynoteLight } from "./theme/light.js"
 import { heynoteDark } from "./theme/dark.js"
@@ -10,30 +10,23 @@ import { heynoteBase } from "./theme/base.js"
 import { getFontTheme } from "./theme/font-theme.js";
 import { customSetup } from "./setup.js"
 import { heynoteLang } from "./lang-heynote/heynote.js"
+import { getCloseBracketsExtensions } from "./close-brackets.js"
 import { noteBlockExtension, blockLineNumbers, blockState, getActiveNoteBlock, triggerCursorChange } from "./block/block.js"
-import { heynoteEvent, SET_CONTENT, DELETE_BLOCK } from "./annotation.js";
-import { changeCurrentBlockLanguage, triggerCurrenciesLoaded, getBlockDelimiter, deleteBlock } from "./block/commands.js"
+import { heynoteEvent, SET_CONTENT, DELETE_BLOCK, APPEND_BLOCK, SET_FONT } from "./annotation.js";
+import { changeCurrentBlockLanguage, triggerCurrenciesLoaded, getBlockDelimiter, deleteBlock, selectAll } from "./block/commands.js"
 import { formatBlockContent } from "./block/format-code.js"
-import { heynoteKeymap } from "./keymap.js"
-import { emacsKeymap } from "./emacs.js"
+import { getKeymapExtensions } from "./keymap.js"
 import { heynoteCopyCut } from "./copy-paste"
 import { languageDetection } from "./language-detection/autodetect.js"
 import { autoSaveContent } from "./save.js"
 import { todoCheckboxPlugin} from "./todo-checkbox.ts"
 import { links } from "./links.js"
+import { indentation } from "./indentation.js"
+import { HEYNOTE_COMMANDS } from "./commands.js";
 import { NoteFormat } from "../common/note-format.js"
 import { AUTO_SAVE_INTERVAL } from "../common/constants.js"
 import { useHeynoteStore } from "../stores/heynote-store.js";
 import { useErrorStore } from "../stores/error-store.js";
-
-
-function getKeymapExtensions(editor, keymap) {
-    if (keymap === "emacs") {
-        return emacsKeymap(editor)
-    } else {
-        return heynoteKeymap(editor)
-    }
-}
 
 
 export class HeynoteEditor {
@@ -50,8 +43,11 @@ export class HeynoteEditor {
         bracketClosing=false,
         fontFamily,
         fontSize,
+        indentType="space",
+        tabSize=4,
         defaultBlockToken,
         defaultBlockAutoDetect,
+        keyBindings,
     }) {
         this.element = element
         this.path = path
@@ -62,6 +58,7 @@ export class HeynoteEditor {
         this.foldGutterCompartment = new Compartment
         this.readOnlyCompartment = new Compartment
         this.closeBracketsCompartment = new Compartment
+        this.indentUnitCompartment = new Compartment
         this.deselectOnCopy = keymap === "emacs"
         this.emacsMetaKey = emacsMetaKey
         this.fontTheme = new Compartment
@@ -70,27 +67,27 @@ export class HeynoteEditor {
         this.notesStore = useHeynoteStore()
         this.errorStore = useErrorStore()
         this.name = ""
+        this.selectionMarkMode = false
         
 
         const state = EditorState.create({
             doc: "",
             extensions: [
-                this.keymapCompartment.of(getKeymapExtensions(this, keymap)),
+                this.keymapCompartment.of(getKeymapExtensions(this, keymap, keyBindings)),
                 heynoteCopyCut(this),
 
                 //minimalSetup,
                 this.lineNumberCompartment.of(showLineNumberGutter ? [lineNumbers(), blockLineNumbers] : []),
                 customSetup, 
                 this.foldGutterCompartment.of(showFoldGutter ? [foldGutter()] : []),
-
-                this.closeBracketsCompartment.of(bracketClosing ? [closeBrackets()] : []),
+                this.closeBracketsCompartment.of(bracketClosing ? [getCloseBracketsExtensions()] : []),
 
                 this.readOnlyCompartment.of([]),
                 
                 this.themeCompartment.of(theme === "dark" ? heynoteDark : heynoteLight),
                 heynoteBase,
                 this.fontTheme.of(getFontTheme(fontFamily, fontSize)),
-                indentUnit.of("    "),
+                this.indentUnitCompartment.of(indentation(indentType, tabSize)),
                 EditorView.scrollMargins.of(f => {
                     return {top: 80, bottom: 80}
                 }),
@@ -108,8 +105,12 @@ export class HeynoteEditor {
 
                 autoSaveContent(this, AUTO_SAVE_INTERVAL),
 
+                // Markdown extensions, we need to add markdownKeymap manually with the highest precedence
+                // so that it takes precedence over the default keymap
                 todoCheckboxPlugin,
-                markdown(),
+                markdown({addKeymap: false}),
+                Prec.highest(cmKeymap.of(markdownKeymap)),
+
                 links,
             ],
         })
@@ -126,13 +127,19 @@ export class HeynoteEditor {
         
         //this.setContent(content)
         this.setReadOnly(true)
-        this.loadContent().then(() => {
+        this.contentLoadedPromise = this.loadContent();
+        this.contentLoadedPromise.then(() => {
             this.setReadOnly(false)
         })
 
         if (focus) {
             this.view.focus()
         }
+
+        // trigger setFont once the fonts has loaded
+        document.fonts.ready.then(() => {
+            this.setFont(fontFamily, fontSize)
+        })
     }
 
     async save() {
@@ -165,7 +172,6 @@ export class HeynoteEditor {
         const content = await window.heynote.buffer.load(this.path)
         this.diskContent = content
         this.contentLoaded = true
-        this.setContent(content)
 
         // set up content change listener
         this.onChange = (content) => {
@@ -173,6 +179,8 @@ export class HeynoteEditor {
             this.setContent(content)
         }
         window.heynote.buffer.addOnChangeCallback(this.path, this.onChange)
+
+        await this.setContent(content)
     }
 
     setContent(content) {
@@ -235,6 +243,13 @@ export class HeynoteEditor {
         return this.view.state.selection.main.head
     }
 
+    setCursorPosition(position) {
+        this.view.dispatch({
+            selection: {anchor: position, head: position},
+            scrollIntoView: true,
+        })
+    }
+
     focus() {
         this.view.focus()
     }
@@ -248,6 +263,7 @@ export class HeynoteEditor {
     setFont(fontFamily, fontSize) {
         this.view.dispatch({
             effects: this.fontTheme.reconfigure(getFontTheme(fontFamily, fontSize)),
+            annotations: [heynoteEvent.of(SET_FONT), Transaction.addToHistory.of(false)],
         })
     }
 
@@ -257,11 +273,11 @@ export class HeynoteEditor {
         })
     }
 
-    setKeymap(keymap, emacsMetaKey) {
+    setKeymap(keymap, emacsMetaKey, keyBindings) {
         this.deselectOnCopy = keymap === "emacs"
         this.emacsMetaKey = emacsMetaKey
         this.view.dispatch({
-            effects: this.keymapCompartment.reconfigure(getKeymapExtensions(this, keymap)),
+            effects: this.keymapCompartment.reconfigure(getKeymapExtensions(this, keymap, keyBindings)),
         })
     }
 
@@ -273,8 +289,16 @@ export class HeynoteEditor {
         this.notesStore.openBufferSelector()
     }
 
+    openCommandPalette() {
+        this.notesStore.openCommandPalette()
+    }
+
     openCreateBuffer(createMode) {
         this.notesStore.openCreateBuffer(createMode)
+    }
+
+    openMoveToBufferSelector() {
+        this.notesStore.openMoveToBufferSelector()
     }
 
     async createNewBuffer(path, name) {
@@ -301,8 +325,35 @@ export class HeynoteEditor {
         // by using requestAnimationFrame we avoid a race condition where rendering the block backgrounds
         // would fail if we immediately opened the new note (since the block UI wouldn't have time to update 
         // after the block was deleted)
-        requestAnimationFrame(() => {
-            this.notesStore.openBuffer(path)
+        //requestAnimationFrame(() => {
+        //    this.notesStore.openBuffer(path)
+        //})
+
+        // add new buffer to recent list so that it shows up at the top of the buffer selector
+        this.notesStore.addRecentBuffer(path)
+        this.notesStore.addRecentBuffer(this.notesStore.currentBufferPath)
+    }
+
+    getActiveBlockContent() {
+        const block = getActiveNoteBlock(this.view.state)
+        if (!block) {
+            return
+        }
+        return this.view.state.sliceDoc(block.range.from, block.range.to)
+    }
+
+    deleteActiveBlock() {
+        deleteBlock(this)(this.view)
+    }
+
+    appendBlockContent(content) {
+        this.view.dispatch({
+            changes: {
+                from: this.view.state.doc.length,
+                to: this.view.state.doc.length,
+                insert: content,
+            },
+            annotations: [heynoteEvent.of(APPEND_BLOCK)],
         })
     }
 
@@ -324,13 +375,13 @@ export class HeynoteEditor {
 
     setBracketClosing(value) {
         this.view.dispatch({
-            effects: this.closeBracketsCompartment.reconfigure(value ? [closeBrackets()] : []),
+            effects: this.closeBracketsCompartment.reconfigure(value ? [getCloseBracketsExtensions()] : []),
         })
     }
 
     setDefaultBlockLanguage(token, autoDetect) {
-        this.defaultBlockToken = token
-        this.defaultBlockAutoDetect = autoDetect
+        this.defaultBlockToken = token || "text"
+        this.defaultBlockAutoDetect = autoDetect === undefined ? true : autoDetect
     }
 
     formatCurrentBlock() {
@@ -363,6 +414,33 @@ export class HeynoteEditor {
         //console.log("showing element", this.view.dom)
         this.view.dom.style.setProperty("display", "")
         triggerCursorChange(this.view)
+    }
+
+    undo() {
+        undo(this.view)
+    }
+
+    redo() {
+        redo(this.view)
+    }
+
+    selectAll() {
+        selectAll(this.view)
+    }
+
+    setIndentSettings(indentType, tabSize) {
+        this.view.dispatch({
+            effects: this.indentUnitCompartment.reconfigure(indentation(indentType, tabSize))
+        })
+    }
+    
+    executeCommand(command) {
+        const cmd = HEYNOTE_COMMANDS[command]
+        if (!cmd) {
+            console.error(`Command not found: ${command}`)
+            return
+        }
+        cmd.run(this)(this.view)
     }
 }
 

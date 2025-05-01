@@ -2,7 +2,67 @@
 
 Here are the most notable changes in each release. For a more detailed list of changes, see the [Github Releases page](https://github.com/heyman/heynote/releases).
 
-## 2.0.0-beta
+## 2.2.1 (not released yet)
+
+### Bug Fixes
+
+- Fix issue where the second command in the command palette, instead of the first command, was selected when the palette is opened.
+- Change name/label of some commands in the command palette, and make commands searchable using their key names as well.
+- Fix key bindings for toggleComment and toggleBlockComment commands that were previously working.
+- Fix issue with lists in markdown blocks not automatically being continued when pressing enter.
+
+
+## 2.2.0
+
+### New Features
+
+- Added support for custom key bindings. See [the documentation](https://heynote.com/docs/#user-content-custom-key-bindings) for more info.
+- Added a "command palette" that can be accessed by pressing `Ctrl/Cmd+Shift+P`, or just typing `>` in the buffer selector. The command palette allows you to discover all available commands in the app, and to quickly execute them.
+- Added support for configuring the tab size, as well as the option to use tabs instead of spaces for indentation.
+- Added functionality for moving blocks up and down. Default key bindings are `Ctrl/Cmd+Alt+Shift+Up` and `Ctrl/Cmd+Alt+Shift+Down`.
+- Added functionality for inserting the current date and time. Default key binding is `Alt+Shift+D`.
+
+### Other changes
+
+- Upgraded to latest version of Electron, CodeMirror, Vue, electron-builder and other dependencies.
+
+## 2.1.4
+
+- Fix issue with positioning and size of todo list checkboxes in Markdown blocks when using a non-default font size, or a non-monospaced font.
+- Fix issue when pressing `Ctrl/Cmd+A` in a text input inside a modal dialog (e.g. the buffer selector). Previously the select all command would be sent to the editor.
+
+## 2.1.3
+
+- Fix escaping issue in buffer selector (properly this time, hopefully)
+
+## 2.1.2 (yanked)
+
+- Fix issue where buffer name wasn't properly escaped in buffer selector
+
+## 2.1.1
+
+- Fix bug on Windows causing sub directories in the note library to not work correctly
+
+## 2.1.0
+
+### New Features
+
+- Added support for moving the current block to another (or new) buffer. Pressing `Ctrl/Cmd+S` will now pop up a dialog where you can search for and select another buffer to which the block will be moved. It's also possible to select to create a new buffer to which the block will be moved.
+- Add right click context menu with undo/redo/cut/copy/paste/select all as well as Delete Block and Move block to another buffer.
+- Add File menu item for switching buffer
+- When deleting a block, the cursor will now end up at the beginning of the next block, instead of at the end of the previous block.
+- Added support for the following languages:
+  * Elixir
+  * Scala
+- PHP blocks no longer requires `<?php` for syntax highlighting to work
+
+### Bug Fixes
+
+- MacOS: Clicking the Heynote icon in the dock when using menu bar mode didn't bring up the window
+- Redo from the application menu didn't work
+
+
+## 2.0.0
 
 ### IMPORTANT (breaking change)
 
@@ -20,6 +80,7 @@ Apart from the default Scratch buffer, you can now create and switch between mul
 - The cursor(s) location is saved between sessions.
 - Improvements when using a file syncing service (e.g. Dropbox, OneDrive) to sync the note library between machines.
 - The setting for changing the color theme is now located in the program settings, instead of in the status bar.
+- Improvements to the language selector's search feature (it's now possible to search for languages by their file extension).
 
 ## 1.8.0
 

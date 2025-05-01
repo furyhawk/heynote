@@ -2,16 +2,33 @@
     import fuzzysort from 'fuzzysort'
 
     import { mapState, mapActions } from 'pinia'
-    import { toRaw } from 'vue';
     import { SCRATCH_FILE_NAME } from "../common/constants"
     import { useHeynoteStore } from "../stores/heynote-store"
+    import { HEYNOTE_COMMANDS } from '../editor/commands'
+
+    const pathSep = window.heynote.buffer.pathSeparator
+
+    function escapeHTML(str) {
+        return str
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#039;')
+    }
 
     export default {
+        props: {
+            headline: String,
+            initialFilter: String,
+            commandsEnabled: Boolean,
+        },
+        
         data() {
             return {
                 selected: 0,
                 actionButton: 0,
-                filter: "",
+                filter: this.initialFilter || "",
                 items: [],
                 SCRATCH_FILE_NAME: SCRATCH_FILE_NAME,
                 deleteConfirm: false,
@@ -23,7 +40,7 @@
             this.$refs.container.focus()
             this.$refs.input.focus()
             this.buildItems()
-            if (this.items.length > 1) {
+            if (this.items.length > 1 && !this.initialFilter?.startsWith(">")) {
                 this.selected = 1
             }
         },
@@ -33,6 +50,25 @@
                 "buffers",
                 "recentBufferPaths",
             ]),
+
+            commands() {
+                const commands = Object.entries(HEYNOTE_COMMANDS)
+                // sort array first by category, then by description
+                commands.sort((a, b) => {
+                    const aCategory = a[1].category || ""
+                    const bCategory = b[1].category || ""
+                    if (aCategory === bCategory) {
+                        return a[1].description.localeCompare(b[1].description)
+                    } else {
+                        return aCategory.localeCompare(bCategory)
+                    }
+                })
+                return commands.map(([cmdKey, cmd]) => ({
+                    name: `${cmd.category}: ${cmd.description}`,
+                    cmd: cmdKey,
+                    isCommand: true,
+                }))
+            },
 
             orderedItems() {
                 const sortKeys = Object.fromEntries(this.recentBufferPaths.map((item, idx) => [item, idx]))
@@ -44,8 +80,8 @@
                         return sortScore
                     } else {
                         // then notes in root
-                        const aIsRoot = a.path.indexOf("/") === -1
-                        const bIsRoot = b.path.indexOf("/") === -1
+                        const aIsRoot = a.path.indexOf(pathSep) === -1
+                        const bIsRoot = b.path.indexOf(pathSep) === -1
                         if (aIsRoot && !bIsRoot) {
                             return -1
                         } else if (!aIsRoot && bIsRoot) {
@@ -60,32 +96,47 @@
             },
 
             filteredItems() {
-                let items
-                if (this.filter === "") {
-                    items = this.orderedItems
-                    
-                } else {
-                    const searchResults = fuzzysort.go(this.filter, this.items, {
-                        keys: ["name", "folder"],
+                if (this.commandsEnabled && this.filter.startsWith(">")) {
+                    // command mode if the first character is ">"
+                    if (this.filter.length < 2) {
+                        return this.commands
+                    }
+                    const searchResults = fuzzysort.go(this.filter.slice(1), this.commands, {
+                        keys: ["name", "cmd"],
                     })
-                    items = searchResults.map((result) => {
+                    return searchResults.map((result) => {
                         const obj = {...result.obj}
                         const nameHighlight = result[0].highlight("<b>", "</b>")
-                        const folderHighlight = result[1].highlight("<b>", "</b>")
                         obj.name = nameHighlight !== "" ? nameHighlight : obj.name
-                        obj.folder = folderHighlight !== "" ? folderHighlight : obj.folder
                         return obj
                     })
+                } else {
+                    let items
+                    if (this.filter === "") {
+                        items = this.orderedItems
+                    } else {
+                        const searchResults = fuzzysort.go(this.filter, this.items, {
+                            keys: ["name", "folder"],
+                        })
+                        items = searchResults.map((result) => {
+                            const obj = {...result.obj}
+                            const nameHighlight = result[0].highlight("<b>", "</b>")
+                            const folderHighlight = result[1].highlight("<b>", "</b>")
+                            obj.name = nameHighlight !== "" ? nameHighlight : obj.name
+                            obj.folder = folderHighlight !== "" ? folderHighlight : obj.folder
+                            return obj
+                        })
+                    }
+                    
+                    const newNoteItem = {
+                        name: "Create new…", 
+                        createNew:true,
+                    }
+                    return [
+                        ...items,
+                        newNoteItem,
+                    ]
                 }
-                
-                const newNoteItem = {
-                    name: "Create new…", 
-                    createNew:true,
-                }
-                return [
-                    ...items,
-                    newNoteItem,
-                ]
             },
         },
 
@@ -94,7 +145,7 @@
                 "updateBuffers",
                 "editBufferMetadata",
                 "deleteBuffer",
-                "openCreateBuffer",
+                "executeCommand",
             ]),
 
             buildItems() {
@@ -102,8 +153,8 @@
                 this.items = Object.entries(this.buffers).map(([path, metadata]) => {
                     return {
                         "path": path,
-                        "name": metadata?.name || path,
-                        "folder": path.split("/").slice(0, -1).join("/"),
+                        "name": escapeHTML(metadata?.name || path),
+                        "folder": escapeHTML(path.split(pathSep).slice(0, -1).join(pathSep)),
                         "scratch": path === SCRATCH_FILE_NAME,
                     }
                 })
@@ -170,17 +221,22 @@
             selectItem(item) {
                 if (item.createNew) {
                     if (this.filteredItems.length === 1) {
-                        this.openCreateBuffer("new", this.filter)
+                        this.$emit("openCreateBuffer", this.filter)
                     } else {
-                        this.openCreateBuffer("new", "")
+                        this.$emit("openCreateBuffer", "")
                     }
+                } else if (item.isCommand) {
+                    this.$emit("close")
+                    this.$nextTick(() => {
+                        this.executeCommand(item.cmd)
+                    })
                 } else {
                     this.$emit("openBuffer", item.path)
                 }
             },
 
             itemHasActionButtons(item) {
-                return !item.createNew && item.path !== SCRATCH_FILE_NAME
+                return !item.createNew && item.path !== SCRATCH_FILE_NAME && !item.isCommand
             },
 
             onInput(event) {
@@ -235,8 +291,9 @@
 </script>
 
 <template>
-    <form class="note-selector" tabindex="-1" @focusout="onFocusOut" ref="container">
+    <form class="note-selector" tabindex="-1" @focusout="onFocusOut" ref="container" @submit.prevent>
         <div class="input-container">
+            <h1 v-if="headline">{{headline}}</h1>
             <input 
                 type="text" 
                 ref="input"
@@ -294,12 +351,11 @@
 <style scoped lang="sass">
     .note-selector
         font-size: 13px
-        //background: #48b57e
         background: #efefef
         position: absolute
         top: 0
         left: 50%
-        width: 420px
+        width: 440px
         transform: translateX(-50%)
         max-height: 100%
         box-sizing: border-box
@@ -310,11 +366,15 @@
         +dark-mode
             background: #151516
             box-shadow: 0 0 10px rgba(0,0,0,0.5)
+            color: rgba(255,255,255, 0.7)
         +webapp-mobile
             max-width: calc(100% - 80px)
 
         .input-container
             padding: 10px
+            h1
+                font-weight: bold
+                margin-bottom: 14px
             input
                 background: #fff
                 padding: 4px 5px

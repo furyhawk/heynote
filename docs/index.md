@@ -14,7 +14,7 @@ Available for Mac, Windows, and Linux.
 -   Block-based
 -   Syntax highlighting:
 
-    C++, C#, Clojure, CSS, Erlang, Dart, Go, Groovy, HTML, Java, JavaScript, JSX, Kotlin, TypeScript, TOML, TSX, JSON, Lezer, Markdown, PHP, Python, Ruby, Rust, Shell, SQL, Swift, Vue, XML, YAML
+    C++, C#, Clojure, CSS, Elixir, Erlang, Dart, Go, Groovy, HTML, Java, JavaScript, JSX, Kotlin, TypeScript, TOML, TSX, JSON, Lezer, Markdown, PHP, Python, Ruby, Rust, Scala, Shell, SQL, Swift, Vue, XML, YAML
 
 -   Language auto-detection
 -   Auto-formatting
@@ -39,7 +39,7 @@ Available for Mac, Windows, and Linux.
 ⌘ + ⌥ + Enter       Split the current block at cursor position
 ⌘ + L               Change block language
 ⌘ + N               Create a new note buffer
-⌘ + S               Create a new note buffer from the current block
+⌘ + S               Move the current block to another (or new) buffer
 ⌘ + P               Open note selector
 ⌘ + Down            Goto next block
 ⌘ + Up              Goto previous block
@@ -58,7 +58,7 @@ Alt + Shift + Enter    Add new block at the start of the buffer
 Ctrl + Alt + Enter     Split the current block at cursor position
 Ctrl + L               Change block language
 Ctrl + N               Create a new note buffer
-Ctrl + S               Create a new note buffer from the current block
+Ctrl + S               Move the current block to another (or new) buffer
 Ctrl + P               Open note selector
 Ctrl + Down            Goto next block
 Ctrl + Up              Goto previous block
@@ -68,11 +68,19 @@ Alt + Shift + F        Format block content (works for JSON, JavaScript, HTML, C
 Alt                    Show menu
 ```
 
+## Custom Key Bindings
+
+Heynote supports custom key bindings which you can configure in the settings. The key bindings are evaluated from top to bottom, so a binding that comes before another one will take precedence. Most commands will stop the event from propagating, but some commands only applies in certain contexts and might not stop the event from propagating to a later key binding. 
+
+To disable one of the built in key bindings, you can add a new key binding with the same key combination for the command "Do nothing". This will stop the event from propagating to the built in key binding.
+
 ## Download/Installation
 
 Download the appropriate (Mac, Windows or Linux) version from [heynote.com](https://heynote.com). The Windows build is not signed, so you might see some scary warning (I can not justify paying a yearly fee for a certificate just to get rid of that).
 
 If installing Heynote on Linux in ChromeOS, see the [notes](#user-content-linux-on-chromeos) below about some packages that are needed.
+
+On macOS, [Homebrew](https://brew.sh) users can utilize an unofficial [Homebrew Cask](https://formulae.brew.sh/cask/heynote#default): `brew install --cask heynote`
 
 ## Math Blocks
 
@@ -106,9 +114,9 @@ format(x) = x.toLocaleString('en-GB');
 See the [Math.js format()](https://mathjs.org/docs/reference/functions/format.html) function for more info on what's supported.
 
 
-## The notes library (only for Heynote 2.0, not yet released)
+## The notes library
 
-The notes library is a directory (with sub dirs) on the disk with a `.txt` file for each note. It's created the first time you start Heynote, with the default note file `scratch.txt` in it. The default location for the library is:
+The notes library is a directory (with sub dirs) on the disk with a `.txt` file for each buffer. It's created the first time you start Heynote, with the default buffer file `scratch.txt` in it. The default location for the library is:
 
 -   Mac: `~/Library/Application Support/Heynote/notes/`
 -   Windows: `%APPDATA%\Heynote\notes\`
@@ -118,7 +126,7 @@ You can change the path of the notes library in the settings. Heynote expects re
 
 ### Synchronizing the notes library
 
-Heynote is built to support synchronizing the notes library (or buffer file in the case of Heynote 1.x) through file-syncing services like Dropbox, OneDrive, etc. However, note that the synchronization logic is quite simple, so editing the same note on two different machines at the same time might lead to conflicts and unexpected results.
+Heynote is built to support synchronizing the notes library (or buffer file in the case of Heynote 1.x) through file-syncing services like Dropbox, OneDrive, etc. However, note that the synchronization logic is quite simple, so editing the same buffer on two different machines at the same time might lead to conflicts and unexpected results.
 
 When using a file synching service that support "offloading" of files in the cloud (removing them from the disk), it's recommended to mark the notes library as "always available offline".
 

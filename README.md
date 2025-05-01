@@ -7,9 +7,9 @@
 
 ## General Information
 
-- Website: [heynote.com](https://heynote.com)
-- Documentation: [heynote.com](https://heynote.com/docs/)
-- Changelog: [heynote.com](https://heynote.com/docs/changelog/)
+- [Website](https://heynote.com)
+- [Documentation](https://heynote.com/docs/)
+- [Changelog](https://heynote.com/docs/changelog/)
 
 Heynote is a dedicated scratchpad for developers. It functions as a large persistent text buffer where you can write down anything you like. Works great for that Slack message you don't want to accidentally send, a JSON response from an API you're working with, notes from a meeting, your daily to-do list, etc. 
 
@@ -23,7 +23,7 @@ Available for Mac, Windows, and Linux.
 -   Block-based
 -   Syntax highlighting:
 
-    C++, C#, Clojure, CSS, Erlang, Dart, Go, Groovy, HTML, Java, JavaScript, JSX, Kotlin, TypeScript, TOML, TSX, JSON, Lezer, Markdown, PHP, Python, Ruby, Rust, Shell, SQL, Swift, Vue, XML, YAML
+    C++, C#, Clojure, CSS, Erlang, Dart, Go, Groovy, HTML, Java, JavaScript, JSX, Kotlin, TypeScript, TOML, TSX, JSON, Lezer, Markdown, PHP, Python, Ruby, Rust, Scala, Shell, SQL, Swift, Vue, XML, YAML
     
 -   Language auto-detection
 -   Auto-formatting
@@ -72,17 +72,11 @@ I'm happy to merge contributions that fit my vision for the app. Bug fixes are a
 
 ### Where is the buffer data stored?
 
-See the [documentation](https://heynote.com/docs/#user-content-the-buffer-file).
+See the [documentation](https://heynote.com/docs/#user-content-the-notes-library).
 
 ### Can you make a mobile app?
 
 No, at the moment this is out of scope, sorry.
-
-### Can you add a feature for naming blocks and/or adding tags? [(#44)](https://github.com/heyman/heynote/issues/44)
-
-Currently, I'm not planning on adding this. The main reason is that it goes against the scratchpadness of the program.
-
-I can totally see the usefulness of such a feature, and it's definitely something that I would expect from a more traditional Notes app. However a large part of Heynote's appeal is it's simplicity, and if that is to remain so, I'm going to have to say no to a lot of actually useful features.
 
 ### What are the default keyboard shortcuts?
 

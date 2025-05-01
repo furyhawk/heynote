@@ -1,11 +1,9 @@
 const { contextBridge } = require('electron')
+import { sep } from "path"
 import themeMode from "./theme-mode"
 import { isMac, isWindows, isLinux, isDev } from "../detect-platform"
 import { ipcRenderer } from "electron"
-import { 
-    WINDOW_CLOSE_EVENT, 
-    OPEN_SETTINGS_EVENT, 
-    SETTINGS_CHANGE_EVENT, 
+import {
     UPDATE_AVAILABLE_EVENT, 
     UPDATE_ERROR, 
     UPDATE_DOWNLOAD_PROGRESS, 
@@ -14,7 +12,7 @@ import {
     UPDATE_INSTALL_AND_RESTART,
     UPDATE_DOWNLOADED,
     UPDATE_CHECK_FOR_UPDATES,
-} from "../constants"
+} from "@/src/common/constants"
 import CONFIG from "../config"
 import getCurrencyData from "./currency"
 
@@ -43,17 +41,18 @@ contextBridge.exposeInMainWorld("heynote", {
         })
     },
 
-    quit() {
-        console.log("quitting")
-        //ipcRenderer.invoke("app_quit")
-    },
+    mainProcess: {
+        on(event, callback) {
+            ipcRenderer.on(event, callback)
+        },
+        
+        off(event, callback) {
+            ipcRenderer.off(event, callback)
+        },
 
-    onWindowClose(callback) {
-        ipcRenderer.on(WINDOW_CLOSE_EVENT, callback)
-    },
-
-    onOpenSettings(callback) {
-        ipcRenderer.on(OPEN_SETTINGS_EVENT, callback)
+        invoke(event, ...args) {
+            return ipcRenderer.invoke(event, ...args)
+        }
     },
 
     buffer: {
@@ -118,6 +117,8 @@ contextBridge.exposeInMainWorld("heynote", {
         setLibraryPathChangeCallback(callback) {
             ipcRenderer.on("library:pathChanged", callback)
         },
+
+        pathSeparator: sep,
     },
 
     settings: CONFIG.get("settings"),
@@ -128,10 +129,6 @@ contextBridge.exposeInMainWorld("heynote", {
 
     async getCurrencyData() {
         return await getCurrencyData()
-    },
-
-    onSettingsChange(callback) {
-        ipcRenderer.on(SETTINGS_CHANGE_EVENT, (event, settings) => callback(settings))
     },
 
     autoUpdate: {
@@ -168,7 +165,7 @@ contextBridge.exposeInMainWorld("heynote", {
 })
 
 
-function domReady(condition: DocumentReadyState[] = ['complete', 'interactive']) {
+function domReady(condition=['complete', 'interactive']) {
     return new Promise((resolve) => {
         if (condition.includes(document.readyState)) {
             resolve(true)
@@ -183,12 +180,12 @@ function domReady(condition: DocumentReadyState[] = ['complete', 'interactive'])
 }
 
 const safeDOM = {
-    append(parent: HTMLElement, child: HTMLElement) {
+    append(parent, child) {
         if (!Array.from(parent.children).find(e => e === child)) {
             return parent.appendChild(child)
         }
     },
-    remove(parent: HTMLElement, child: HTMLElement) {
+    remove(parent, child) {
         if (Array.from(parent.children).find(e => e === child)) {
             return parent.removeChild(child)
         }

@@ -20,6 +20,7 @@ export class HeynotePage {
     async goto() {
         await this.page.goto("/")
         await expect(this.page).toHaveTitle(/Heynote/)
+        await expect(this.page.locator(".cm-editor")).toBeVisible()
         expect(this.getErrors()).toStrictEqual([])
     }
 
@@ -38,11 +39,18 @@ export class HeynotePage {
 
     async setContent(content) {
         await expect(this.page.locator("css=.cm-editor")).toBeVisible()
-        await this.page.evaluate((content) => window._heynote_editor.setContent(content), content)
+        await this.page.evaluate(async (content) => {
+            await window._heynote_editor.setContent(content)
+            await window._heynote_editor.save()
+        }, content)
     }
 
     async getCursorPosition() {
         return await this.page.evaluate(() => window._heynote_editor.getCursorPosition())
+    }
+
+    async setCursorPosition(position) {
+        await this.page.evaluate((position) => window._heynote_editor.setCursorPosition(position), position)
     }
 
     async getBlockContent(blockIndex) {
@@ -63,6 +71,22 @@ export class HeynotePage {
 
     async getStoredBuffer(path) {
         return await this.page.evaluate((path) => window.heynote.buffer.load(path), path)
+    }
+
+    async saveBuffer(path, content) {
+        const format = new NoteFormat()
+        format.content = content
+        await this.page.evaluate(({path, content}) => window.heynote.buffer.save(path, content), {path, content:format.serialize()})
+    }
+
+    async getSettings() {
+        return await this.page.evaluate(() => {
+            return JSON.parse(window.localStorage.getItem("settings") || "{}")
+        })
+    }
+
+    async setSettings(settings) {
+        await this.page.evaluate((settings) => window.heynote.setSettings(settings), settings)
     }
 
     agnosticKey(key) {

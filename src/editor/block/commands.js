@@ -1,6 +1,6 @@
 import { EditorSelection, Transaction } from "@codemirror/state"
 
-import { heynoteEvent, LANGUAGE_CHANGE, CURRENCIES_LOADED, ADD_NEW_BLOCK, DELETE_BLOCK } from "../annotation.js";
+import { heynoteEvent, LANGUAGE_CHANGE, CURRENCIES_LOADED, ADD_NEW_BLOCK, MOVE_BLOCK, DELETE_BLOCK } from "../annotation.js";
 import { blockState, getActiveNoteBlock, getFirstNoteBlock, getLastNoteBlock, getNoteBlockFromPos } from "./block"
 import { moveLineDown, moveLineUp } from "./move-lines.js";
 import { selectAll } from "./select-all.js";
@@ -322,7 +322,104 @@ export function triggerCurrenciesLoaded(state, dispatch) {
     }))
 }
 
+export function moveCurrentBlockUp({state, dispatch}) {
+    return moveCurrentBlock(state, dispatch, true)
+}
+
+export function moveCurrentBlockDown({state, dispatch}) {
+    return moveCurrentBlock(state, dispatch, false)
+}
+
+function moveCurrentBlock(state, dispatch, up) {
+    if (state.readOnly) {
+        return false
+    }
+
+    const blocks = state.facet(blockState)
+    const currentBlock = getActiveNoteBlock(state)
+    const blockIndex = blocks.indexOf(currentBlock)
+    if ((up && blockIndex === 0) || (!up && blockIndex === blocks.length - 1)) {
+        return false
+    }
+
+    const dir = up ? -1 : 1
+    const neighborBlock = blocks[blockIndex + dir]
+
+    const currentBlockContent = state.sliceDoc(currentBlock.delimiter.from, currentBlock.content.to)
+    const neighborBlockContent = state.sliceDoc(neighborBlock.delimiter.from, neighborBlock.content.to)
+    const newContent = up ? currentBlockContent + neighborBlockContent : neighborBlockContent + currentBlockContent
+
+    const selectionRange = state.selection.asSingle().ranges[0]
+    let newSelectionRange
+    if (up) {
+        newSelectionRange = EditorSelection.range(
+            selectionRange.anchor - currentBlock.delimiter.from + neighborBlock.delimiter.from,
+            selectionRange.head - currentBlock.delimiter.from + neighborBlock.delimiter.from,
+        )
+    } else {
+        newSelectionRange = EditorSelection.range(
+            selectionRange.anchor + neighborBlock.content.to - neighborBlock.delimiter.from,
+            selectionRange.head + neighborBlock.content.to - neighborBlock.delimiter.from,
+        )
+    }
+
+    dispatch(state.update({
+        changes: {
+            from: up ? neighborBlock.delimiter.from : currentBlock.delimiter.from,
+            to: up ? currentBlock.content.to : neighborBlock.content.to,
+            insert: newContent,
+        },
+        selection: newSelectionRange,
+        annotations: [heynoteEvent.of(MOVE_BLOCK)],
+    }, {
+        scrollIntoView: true,
+        userEvent: "input",
+    }))
+    return true
+}
+
 export const deleteBlock = (editor) => ({state, dispatch}) => {
+    const range = state.selection.asSingle().ranges[0]
+    const blocks = state.facet(blockState)
+    let block
+    let nextBlock
+    for (let i = 0; i < blocks.length; i++) {
+        block = blocks[i]
+        if (block.range.from <= range.head && block.range.to >= range.head) {
+            if (i < blocks.length - 1) {
+                nextBlock = blocks[i + 1]
+            }
+            break
+        }
+    }
+    
+    let replace = ""
+    let newSelection
+
+    if (blocks.length == 1) {
+        replace = getBlockDelimiter(editor.defaultBlockToken, editor.defaultBlockAutoDetect)
+        newSelection = replace.length
+    } else if (!nextBlock) {
+        // if it's the last block, the cursor should go at the en of the previous block
+        newSelection = block.delimiter.from
+    } else {
+        // if there is a next block, we want the cursor to be at the beginning of that block
+        newSelection = block.delimiter.from + (nextBlock.delimiter.to - nextBlock.delimiter.from)
+    }
+
+    dispatch(state.update({
+        changes: {
+            from: block.range.from,
+            to: block.range.to,
+            insert: replace,
+        },
+        selection: EditorSelection.cursor(newSelection),
+        annotations: [heynoteEvent.of(DELETE_BLOCK)],
+    }))
+    return true
+}
+
+export const deleteBlockSetCursorPreviousBlock = (editor) => ({state, dispatch}) => {
     const block = getActiveNoteBlock(state)
     const blocks = state.facet(blockState)
     let replace = ""
@@ -340,4 +437,5 @@ export const deleteBlock = (editor) => ({state, dispatch}) => {
         selection: EditorSelection.cursor(newSelection),
         annotations: [heynoteEvent.of(DELETE_BLOCK)],
     }))
+    return true
 }

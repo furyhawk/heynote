@@ -46,13 +46,15 @@ const updateGuesslangLanguagesInWebWorker = async () => {
 }
 
 
+const resolveConfig = {
+	alias: {
+		'@': path.resolve(__dirname),
+	},
+}
+
 // https://vitejs.dev/config/
 export default defineConfig({
-	resolve: {
-        alias: {
-            '@': path.resolve(__dirname),
-        },
-    },
+	resolve: resolveConfig,
 
 	plugins: [
 		vue(),
@@ -78,10 +80,11 @@ export default defineConfig({
 							external: Object.keys("dependencies" in pkg ? pkg.dependencies : {}),
 						},
 					},
+					resolve: resolveConfig,
 				},
 			},
 			{
-				entry: 'electron/preload/index.ts',
+				entry: 'electron/preload/index.js',
 				onstart(options) {
 					// Notify the Renderer-Process to reload the page when the Preload-Scripts build is complete, 
 					// instead of restarting the entire Electron App.
@@ -96,6 +99,7 @@ export default defineConfig({
 							external: Object.keys("dependencies" in pkg ? pkg.dependencies : {}),
 						},
 					},
+					resolve: resolveConfig,
 				},
 			},
 			{
@@ -132,8 +136,9 @@ export default defineConfig({
 	css: {
 		preprocessorOptions: {
 			sass: {
+				api: "modern-compiler",
 				additionalData: `
-    @import "./src/css/include.sass"
+    @use "@/src/css/include.sass" as *
 `
 			}
 		}

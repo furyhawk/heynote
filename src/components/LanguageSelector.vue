@@ -5,7 +5,8 @@
     const items = LANGUAGES.map(l => {
         return {
             "token": l.token, 
-            "name": l.name
+            "name": l.name,
+            "guesslang": l.guesslang,
         }
     }).sort((a, b) => {
         return a.name.localeCompare(b.name)
@@ -35,12 +36,13 @@
                     return items
                 }
                 const searchResults = fuzzysort.go(this.filter, items, {
-                    keys: ['name'],
+                    keys: ['name', 'guesslang'],
                 })
                 return searchResults.map(result => {
+                    const highlight = result[0].highlight("<b>", "</b>")
                     return {
                         "token": result.obj.token,
-                        "name": result[0].highlight("<b>", "</b>")
+                        "name": highlight || result.obj.name,
                     }
                 })
             },
@@ -152,7 +154,7 @@
             border: 1px solid #ccc
             box-sizing: border-box
             border-radius: 2px
-            width: 400px
+            width: 300px
             margin-bottom: 10px
             &:focus
                 outline: none
