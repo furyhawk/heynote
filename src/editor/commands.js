@@ -11,8 +11,12 @@ import {
     insertNewlineAndIndent,
     toggleComment, toggleBlockComment, toggleLineComment,
 } from "@codemirror/commands"
-import { foldCode, unfoldCode } from "@codemirror/language"
-import { selectNextOccurrence } from "@codemirror/search"
+import { foldCode, unfoldCode, toggleFold } from "@codemirror/language"
+import { 
+    openSearchPanel, closeSearchPanel, findNext, findPrevious, 
+    selectMatches, replaceNext, replaceAll, 
+} from "./codemirror-search/search.js"
+import { selectNextOccurrence, selectSelectionMatches } from "./search/selection-match.js"
 import { insertNewlineContinueMarkup } from "@codemirror/lang-markdown"
 
 import { 
@@ -33,6 +37,10 @@ import { cutCommand, copyCommand, pasteCommand } from "./copy-paste.js"
 
 import { markModeMoveCommand, toggleSelectionMarkMode, selectionMarkModeCancel } from "./mark-mode.js"
 import { insertDateAndTime } from "./date-time.js"
+import { foldBlock, unfoldBlock, toggleBlockFold } from "./fold-gutter.js"
+import { useHeynoteStore } from "../stores/heynote-store.js";
+import { useSettingsStore } from "../stores/settings-store.js"
+import { toggleSpellcheck, enableSpellcheck, disableSpellcheck } from "./spell-check.js"
 
 
 const cursorPreviousBlock = markModeMoveCommand(gotoPreviousBlock, selectPreviousBlock)
@@ -42,25 +50,55 @@ const cursorNextParagraph = markModeMoveCommand(gotoNextParagraph, selectNextPar
 
 
 const openLanguageSelector = (editor) => () => {
-    editor.openLanguageSelector()
+    useHeynoteStore().openLanguageSelector()
     return true
 }
 const openBufferSelector = (editor) => () => {
-    editor.openBufferSelector()
+    useHeynoteStore().openBufferSelector()
     return true
 }
 const openCommandPalette = (editor) => () => {
-    editor.openCommandPalette()
+    useHeynoteStore().openCommandPalette()
     return true
 }
 const openMoveToBuffer = (editor) => () => {
-    editor.openMoveToBufferSelector()
+    useHeynoteStore().openMoveToBufferSelector()
     return true
 }
 const openCreateNewBuffer = (editor) => () => {
-    editor.openCreateBuffer("new")
+    useHeynoteStore().openCreateBuffer("new")
     return true
 }
+
+const closeCurrentTab = (editor) => () => {
+    useHeynoteStore().closeCurrentTab()
+    return true
+}
+const reopenLastClosedTab = (editor) => () => {
+    useHeynoteStore().reopenLastClosedTab()
+    return true
+}
+const switchToLastTab = (editor) => () => {
+    useHeynoteStore().switchToLastTab()
+    return true
+}
+const nextTab = (editor) => () => {
+    useHeynoteStore().nextTab()
+    return true
+}
+const previousTab = (editor) => () => {
+    useHeynoteStore().previousTab()
+    return true
+}
+
+export function toggleAlwaysOnTop(editor) {
+    return (view) => {
+        const settingsStore = useSettingsStore()
+        settingsStore.updateSettings({alwaysOnTop:!settingsStore.settings.alwaysOnTop})
+        return true
+    }
+}
+
 const nothing = (view) => {
     return true
 }
@@ -101,6 +139,29 @@ const HEYNOTE_COMMANDS = {
     openCreateNewBuffer: cmd(openCreateNewBuffer, "Buffer", "Create new buffer…"),
     cut: cmd(cutCommand, "Clipboard", "Cut selection"),
     copy: cmd(copyCommand, "Clipboard", "Copy selection"),
+    foldBlock: cmd(foldBlock, "Block", "Fold block"),
+    unfoldBlock: cmd(unfoldBlock, "Block", "Unfold block"),
+    toggleBlockFold: cmd(toggleBlockFold, "Block", "Toggle block fold"),
+
+    // tab commands
+    closeCurrentTab: cmd(closeCurrentTab, "Buffer", "Close current tab"),
+    reopenLastClosedTab: cmd(reopenLastClosedTab, "Buffer", "Reopen last closed tab"),
+    switchToLastTab: cmd(switchToLastTab, "Buffer", "Switch to last tab"),
+    previousTab: cmd(previousTab, "Buffer", "Switch to previous tab"),
+    nextTab: cmd(nextTab, "Buffer", "Switch to next tab"),
+    ...Object.fromEntries(Array.from({ length: 9 }, (_, i) => [
+        "switchToTab" + (i+1), 
+        cmdLessContext(() => {
+            useHeynoteStore().switchToTabIndex(i)
+            return true
+        }, "Buffer", `Switch to tab ${i+1}`),
+    ])),
+
+    // spellcheck
+    toggleSpellcheck: cmd(toggleSpellcheck, "Spellchecker", "Toggle Spellchecking"),
+    enableSpellcheck: cmd(enableSpellcheck, "Spellchecker", "Enable Spellchecking"),
+    disableSpellcheck: cmd(disableSpellcheck, "Spellchecker", "Disable Spellchecking"),
+    toggleAlwaysOnTop: cmd(toggleAlwaysOnTop, "Window", "Toggle Always on top"),
 
     // commands without editor context
     paste: cmdLessContext(pasteCommand, "Clipboard", "Paste from clipboard"),
@@ -127,7 +188,16 @@ const HEYNOTE_COMMANDS = {
     indentLess: cmdLessContext(indentLess, "Edit", "Indent less"),
     foldCode: cmdLessContext(foldCode, "Edit", "Fold code"),
     unfoldCode: cmdLessContext(unfoldCode, "Edit", "Unfold code"),
+    toggleFold: cmdLessContext(toggleFold, "Edit", "Toggle fold"),
     selectNextOccurrence: cmdLessContext(selectNextOccurrence, "Cursor", "Select next occurrence"),
+    selectSelectionMatches: cmdLessContext(selectSelectionMatches, "Cursor", "Select all selection matches"),
+    openSearchPanel: cmdLessContext(openSearchPanel, "Search", "Open search panel"), 
+    closeSearchPanel: cmdLessContext(closeSearchPanel, "Search", "Close search panel"),
+    findNext: cmdLessContext(findNext, "Search", "Find next"),
+    findPrevious: cmdLessContext(findPrevious, "Search", "Find previous"),
+    selectMatches: cmdLessContext(selectMatches, "Search", "Select all matches"),
+    replaceNext: cmdLessContext(replaceNext, "Search", "Replace next"),
+    replaceAll: cmdLessContext(replaceAll, "Search", "Replace all"),
     deleteCharBackward: cmdLessContext(deleteCharBackward, "Edit", "Delete character backward"),
     deleteCharForward: cmdLessContext(deleteCharForward, "Edit", "Delete character forward"),
     deleteGroupBackward: cmdLessContext(deleteGroupBackward, "Edit", "Delete group backward"),
@@ -158,6 +228,7 @@ for (let commandSuffix of [
     "SyntaxLeft", "SyntaxRight",
     "SubwordBackward", "SubwordForward",
     "LineBoundaryBackward", "LineBoundaryForward",
+    "DocStart", "DocEnd",
 ]) {
     HEYNOTE_COMMANDS[`cursor${commandSuffix}`] = {
         run: markModeMoveCommand(codeMirrorCommands[`cursor${commandSuffix}`], codeMirrorCommands[`select${commandSuffix}`]),

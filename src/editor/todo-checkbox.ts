@@ -1,8 +1,8 @@
 import { EditorView, Decoration } from "@codemirror/view"
-import { syntaxTree, ensureSyntaxTree } from "@codemirror/language"
 import { WidgetType } from "@codemirror/view"
 import { ViewUpdate, ViewPlugin, DecorationSet } from "@codemirror/view"
 
+import { getNoteBlockFromPos } from "./block/block"
 import { isMonospaceFont } from "./theme/font-theme"
 import { transactionsHasAnnotation, SET_FONT } from "./annotation"
 
@@ -48,50 +48,35 @@ class CheckboxWidget extends WidgetType {
     ignoreEvent() { return false }
 }
 
+const checkboxRegex = /^([\t\f\v ]*-[\t\f\v ]*)\[( |x|X)\] /gm
 
 function checkboxes(view: EditorView) {
     let widgets: any = []
+
     for (let { from, to } of view.visibleRanges) {
-        syntaxTree(view.state).iterate({
-            from, to,
-            enter: (nodeRef) => {
-                // make sure we only enter markdown nodes
-                if (nodeRef.name == "Note") {
-                    let langNode = nodeRef.node.firstChild?.firstChild
-                    if (langNode) {
-                        const language = view.state.doc.sliceString(langNode.from, langNode.to)
-                        if (!language.startsWith("markdown")) {
-                            return false
-                        }
-                    }
-                }
-                
-                if (nodeRef.name == "TaskMarker") {
-                    // the Markdown parser creates a TaskMarker for "- [x]", but we don't want to replace it with a
-                    // checkbox widget, unless its followed by a space
-                    if (view.state.doc.sliceString(nodeRef.to, nodeRef.to+1) === " ") {
-                        let isChecked = view.state.doc.sliceString(nodeRef.from, nodeRef.to).toLowerCase() === "[x]"
-                        let deco = Decoration.replace({
-                            widget: new CheckboxWidget(isChecked, view.state.facet(isMonospaceFont)),
-                            inclusive: false,
-                        })
-                        widgets.push(deco.range(nodeRef.from, nodeRef.to))
-                    }
-                }
+        let range = view.state.sliceDoc(from, to)
+        let match
+        while (match = checkboxRegex.exec(range)) {
+            if (getNoteBlockFromPos(view.state, from + match.index)?.language?.name === "markdown") {
+                let deco = Decoration.replace({
+                    widget: new CheckboxWidget(match[2] === "x" || match[2] === "X", view.state.facet(isMonospaceFont)),
+                    inclusive: false,
+                })
+                widgets.push(deco.range(from + match.index + match[1].length, from + match.index + match[0].length))
             }
-        })
+        }
     }
     return Decoration.set(widgets)
 }
 
 
 function toggleBoolean(view: EditorView, pos: number) {
-    let before = view.state.doc.sliceString(pos-3, pos).toLowerCase()
+    let before = view.state.doc.sliceString(pos-4, pos).toLowerCase()
     let change
-    if (before === "[x]") {
-        change = { from: pos - 3, to: pos, insert: "[ ]" }
-    } else if (before === "[ ]") {
-        change = { from: pos - 3, to: pos, insert: "[x]" }
+    if (before === "[x] ") {
+        change = { from: pos - 4, to: pos, insert: "[ ] " }
+    } else if (before === "[ ] ") {
+        change = { from: pos - 4, to: pos, insert: "[x] " }
     } else {
         return false
     }
@@ -118,6 +103,10 @@ export const todoCheckboxPlugin = [
         }
     }, {
         decorations: v => v.decorations,
+
+        provide: plugin => EditorView.atomicRanges.of(view => {
+            return view.plugin(plugin)?.decorations || Decoration.none
+        }),
 
         eventHandlers: {
             mousedown: (e, view) => {

@@ -1,7 +1,9 @@
 <script>
     import { toRaw} from 'vue';
-    import { LANGUAGES } from '../../editor/languages.js'
+    import { mapStores, mapState } from 'pinia'
+    import { useSettingsStore } from "@/src/stores/settings-store.js"
 
+    import { LANGUAGES } from '../../editor/languages.js'
     import KeyboardHotkey from "./KeyboardHotkey.vue"
     import TabListItem from "./TabListItem.vue"
     import TabContent from "./TabContent.vue"
@@ -33,11 +35,14 @@
                     { name: "Emacs", value: "emacs" },
                 ],
                 keymap: this.initialSettings.keymap,
-                keyBindings: this.initialSettings.keyBindings,
+                keyBindings: this.initialSettings.keyBindings || [],
                 metaKey: this.initialSettings.emacsMetaKey,
                 isMac: window.heynote.platform.isMac,
                 showLineNumberGutter: this.initialSettings.showLineNumberGutter,
                 showFoldGutter: this.initialSettings.showFoldGutter,
+                showWhitespace: this.initialSettings.showWhitespace,
+                showTabs: this.initialSettings.showTabs,
+                showTabsInFullscreen: this.initialSettings.showTabsInFullscreen,
                 allowBetaVersions: this.initialSettings.allowBetaVersions,
                 enableGlobalHotkey: this.initialSettings.enableGlobalHotkey,
                 globalHotkey: this.initialSettings.globalHotkey,
@@ -96,6 +101,10 @@
             }
         },
 
+        computed: {
+            ...mapStores(useSettingsStore),
+        },
+
         methods: {
             onKeyDown(event) {
                 if (event.key === "Escape" && !this.addKeyBindingDialogVisible) {
@@ -104,9 +113,12 @@
             },
 
             updateSettings() {
-                window.heynote.setSettings({
+                this.settingsStore.updateSettings({
                     showLineNumberGutter: this.showLineNumberGutter,
                     showFoldGutter: this.showFoldGutter,
+                    showWhitespace: this.showWhitespace,
+                    showTabs: this.showTabs,
+                    showTabsInFullscreen: this.showTabsInFullscreen,
                     keymap: this.keymap,
                     keyBindings: this.keyBindings.map((kb) => toRaw(kb)),
                     emacsMetaKey: window.heynote.platform.isMac ? this.metaKey : "alt",
@@ -130,7 +142,7 @@
                     this.showInMenu = true
                 }
                 if (this.theme != this.themeSetting) {
-                    this.$emit("setTheme", this.theme)
+                    this.settingsStore.setTheme(this.theme)
                 }
             },
 
@@ -337,7 +349,7 @@
                         </div>
                         <div class="row">
                             <div class="entry">
-                                <h2>Gutters</h2>
+                                <h2>Gutters & Whitespace</h2>
                                 <label>
                                     <input 
                                         type="checkbox" 
@@ -354,6 +366,15 @@
                                         @change="updateSettings"
                                     />
                                     Show fold gutter
+                                </label>
+
+                                <label>
+                                    <input 
+                                        type="checkbox" 
+                                        v-model="showWhitespace" 
+                                        @change="updateSettings"
+                                    />
+                                    Show white-space
                                 </label>
                             </div>
                         </div>
@@ -377,6 +398,30 @@
                                         :value="size"
                                     >{{ size }}px{{ size === defaultFontSize ? " (default)" : "" }}</option>
                                 </select>
+                            </div>
+                        </div>
+
+                        <div class="row">
+                            <div class="entry">
+                                <h2>Tabs</h2>
+                                <label>
+                                    <input 
+                                        type="checkbox" 
+                                        v-model="showTabs" 
+                                        @change="updateSettings"
+                                    />
+                                    Show tabs
+                                </label>
+                                
+                                <label>
+                                    <input 
+                                        type="checkbox" 
+                                        v-model="showTabsInFullscreen" 
+                                        @change="updateSettings"
+                                        :disabled="!showTabs"
+                                    />
+                                    Show tabs in fullscreen mode
+                                </label>
                             </div>
                         </div>
                     </TabContent>
@@ -457,6 +502,7 @@
 
 <style lang="sass" scoped>
     .settings
+        z-index: 500 // above the search panel and other overlays
         position: fixed
         top: 0
         left: 0

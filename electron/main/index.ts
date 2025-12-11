@@ -3,9 +3,13 @@ import { release } from 'node:os'
 import { join } from 'node:path'
 import fs from "fs"
 
-import { WINDOW_CLOSE_EVENT, SETTINGS_CHANGE_EVENT } from '@/src/common/constants'
+import { 
+    WINDOW_CLOSE_EVENT, WINDOW_FULLSCREEN_STATE, WINDOW_FOCUS_STATE, SETTINGS_CHANGE_EVENT,
+    TITLE_BAR_BG_LIGHT, TITLE_BAR_BG_LIGHT_BLURRED, TITLE_BAR_BG_DARK, TITLE_BAR_BG_DARK_BLURRED,
+    SCRATCH_FILE_NAME, SAVE_TABS_STATE, LOAD_TABS_STATE, CONTEXT_MENU_CLOSED,
+} from '@/src/common/constants'
 
-import { menu, getTrayMenu, getEditorContextMenu } from './menu'
+import { menu, getTrayMenu, getEditorContextMenu, getTabContextMenu, getSpellcheckingContextMenu } from './menu'
 import CONFIG from "../config"
 import { isDev, isLinux, isMac, isWindows } from '../detect-platform';
 import { initializeAutoUpdate, checkForUpdates } from './auto-update';
@@ -94,19 +98,21 @@ async function createWindow() {
     // windowConfig.x and windowConfig.y will be undefined when config file is missing, e.g. first time run
     if (windowConfig.x !== undefined && windowConfig.y !== undefined) {
         // check if window is outside of screen, or too large
-        const area = screen.getDisplayMatching({
+        const display = screen.getDisplayMatching({
             x: windowConfig.x,
             y: windowConfig.y,
             width: windowConfig.width,
             height: windowConfig.height,
-        }).workArea
+        })
+        //console.log("bounds:", display.bounds, "workArea:", display.workArea)
+        const area = display.workArea
         if (windowConfig.width > area.width) {
             windowConfig.width = area.width
         }
         if (windowConfig.height > area.height) {
             windowConfig.height = area.height
         }
-        if (windowConfig.x + windowConfig.width > area.width || windowConfig.y + windowConfig.height > area.height) {
+        if (windowConfig.x + windowConfig.width > (area.width + area.x) || windowConfig.y + windowConfig.height > (area.height + area.y)) {
             // window is outside of screen, reset position
             windowConfig.x = undefined
             windowConfig.y = undefined
@@ -121,10 +127,14 @@ async function createWindow() {
             : "favicon.ico",
     )
 
+    // set initial theme mode
+    nativeTheme.themeSource = CONFIG.get("theme")
+
     win = new BrowserWindow(Object.assign({
         title: 'heynote',
         icon,
         backgroundColor: nativeTheme.shouldUseDarkColors ? '#262B37' : '#FFFFFF',
+        accentColor: undefined,
         //titleBarStyle: 'customButtonsOnHover',
         autoHideMenuBar: true,
         webPreferences: {
@@ -135,6 +145,14 @@ async function createWindow() {
             nodeIntegration: true,
             contextIsolation: true,
         },
+        titleBarStyle: "hidden" as const, // customButtonsOnHover
+        trafficLightPosition: { x: 7, y: 7 },
+        ...(!isMac ? {
+            titleBarOverlay: {
+                color: nativeTheme.shouldUseDarkColors ? TITLE_BAR_BG_DARK : TITLE_BAR_BG_LIGHT,
+                symbolColor: nativeTheme.shouldUseDarkColors ? '#aaa' : '#333',
+            }, 
+        } : {})
     }, windowConfig))
 
     // maximize window if it was maximized last time
@@ -144,6 +162,15 @@ async function createWindow() {
     if (windowConfig.isFullScreen) {
         win.setFullScreen(true)
     }
+
+
+    // when app gets focused, show the window if it's hidden
+    // without this, there are cases when Cmd-Tabbing to Heynote won't show the window
+    app.on("did-become-active", (event) => {
+        if (!win.isVisible()) {
+            win.show()
+        }
+    })
 
     win.on("close", (event) => {
         if (!forceQuit && CONFIG.get("settings.showInMenu")) {
@@ -177,8 +204,38 @@ async function createWindow() {
             win.setSkipTaskbar(false)
         }
     })
+    
+    win.on("enter-full-screen", () => {
+        win?.webContents.send(WINDOW_FULLSCREEN_STATE, true)
+    })
+    win.on("leave-full-screen", () => {
+        win?.webContents.send(WINDOW_FULLSCREEN_STATE, false)
+    })
 
-    nativeTheme.themeSource = CONFIG.get("theme")
+    win.on("focus", () => {
+        // send a message to the renderer to update the window title
+        win?.webContents.send(WINDOW_FOCUS_STATE, true)
+
+        // update titleBarOverlay colors on Windows/Linux
+        if (!isMac) {
+            win?.setTitleBarOverlay({
+                color: nativeTheme.shouldUseDarkColors ? TITLE_BAR_BG_DARK : TITLE_BAR_BG_LIGHT,
+                symbolColor: nativeTheme.shouldUseDarkColors ? '#aaa' : '#333',
+            })
+        }
+    })
+    win.on("blur", () => {
+        // send a message to the renderer to update the window title
+        win?.webContents.send(WINDOW_FOCUS_STATE, false)
+
+        // update titleBarOverlay colors on Windows/Linux
+        if (!isMac) {
+            win?.setTitleBarOverlay({
+                color: nativeTheme.shouldUseDarkColors ? TITLE_BAR_BG_DARK_BLURRED : TITLE_BAR_BG_LIGHT_BLURRED,
+                symbolColor: nativeTheme.shouldUseDarkColors ? '#aaa' : '#333',
+            })
+        }
+    })
 
     if (process.env.VITE_DEV_SERVER_URL) { // electron-vite-vue#298
         win.loadURL(url + '?dev=1')
@@ -192,6 +249,8 @@ async function createWindow() {
     // Test actively push message to the Electron-Renderer
     win.webContents.on('did-finish-load', () => {
         win?.webContents.send('main-process-message', new Date().toLocaleString())
+        win?.webContents.send(WINDOW_FULLSCREEN_STATE, win?.isFullScreen())
+        win?.webContents.send(WINDOW_FOCUS_STATE, win?.isFocused())
     })
 
     // Make all links open with the browser, not with the application
@@ -244,10 +303,7 @@ function registerGlobalHotkey() {
                         // app.hide() only available on macOS
                         // We want to use app.hide() so that the menu bar also gets changed
                         app?.hide()
-                        if (CONFIG.get("settings.alwaysOnTop")) {
-                            // if alwaysOnTop is on, calling app.hide() won't hide the window
-                            win.hide()
-                        }
+                        win.hide()
                     } else if (isLinux) {
                         win.blur()
                         // If we don't hide the window, it will stay on top of the stack even though it's not visible
@@ -278,15 +334,27 @@ function registerGlobalHotkey() {
     }
 }
 
+function setDockVisibility(visible) {
+    if (visible) {
+        //console.log("showing in dock")
+        app.dock.show().catch((error) => {
+            console.log("Could not show app in dock: ", error);
+        });
+        //app.setActivationPolicy("regular");
+    } else {
+        //console.log("hiding from dock")
+        app.dock.hide()
+        //app.setActivationPolicy("accessory")
+    }
+}
+
 function registerShowInDock() {
     // dock is only available on macOS
     if (isMac) {
         if (CONFIG.get("settings.showInDock")) {
-            app.dock.show().catch((error) => {
-                console.log("Could not show app in dock: ", error);
-            });
+            setDockVisibility(true)
         } else {
-            app.dock.hide();
+            setDockVisibility(false)
         }
     }
 }
@@ -301,22 +369,34 @@ function registerShowInMenu() {
 
 function registerAlwaysOnTop() {
     if (CONFIG.get("settings.alwaysOnTop")) {
-        const disableAlwaysOnTop = () => {
+        const setAlwaysOnTop = () => {
             win.setAlwaysOnTop(true, "floating");
-            win.setVisibleOnAllWorkspaces(true, {visibleOnFullScreen: true});
+            win.setVisibleOnAllWorkspaces(true, {visibleOnFullScreen: true, skipTransformProcessType:true});
             win.setFullScreenable(false);
+
+            // Ensure the Dock icon remains visible on macOS
+            if (isMac && CONFIG.get("settings.showInDock")) {
+                setDockVisibility(true)
+            }
+
+            // windows looses focus (on Mac)
+            win.focus()
         }
         // if we're in fullscreen mode, we need to exit fullscreen before we can set alwaysOnTop
         if (win.isFullScreen()) {
             // on Mac setFullScreen happens asynchronously, so we need to wait for the event before we can disable alwaysOnTop
-            win.once("leave-full-screen", disableAlwaysOnTop)
+            win.once("leave-full-screen", setAlwaysOnTop)
             win.setFullScreen(false)
         } else {
-            disableAlwaysOnTop()
+            setAlwaysOnTop()
         }
     } else {
         win.setAlwaysOnTop(false);
-        win.setVisibleOnAllWorkspaces(false);
+
+        // without skipTransformProcessType, the window dock icon will re-appear on Mac if showInDock is false, 
+        // and calling app.dock.hide() immediately after this call won't fix it
+        win.setVisibleOnAllWorkspaces(false, {skipTransformProcessType:true});
+        
         win.setFullScreenable(true);
     }
 }
@@ -366,6 +446,14 @@ app.on('activate', (event, hasVisibleWindows) => {
 ipcMain.handle('dark-mode:set', (event, mode) => {
     CONFIG.set("theme", mode)
     nativeTheme.themeSource = mode
+
+    // update titleBarOverlay colors on Windows/Linux
+    if (!isMac) {
+        win?.setTitleBarOverlay({
+            color: nativeTheme.shouldUseDarkColors ? TITLE_BAR_BG_DARK : TITLE_BAR_BG_LIGHT,
+            symbolColor: nativeTheme.shouldUseDarkColors ? '#aaa' : '#333',
+        })
+    }
 })
 
 ipcMain.handle('dark-mode:get', () => nativeTheme.themeSource)
@@ -376,6 +464,31 @@ ipcMain.handle("setWindowTitle", (event, title) => {
 
 ipcMain.handle("showEditorContextMenu", () =>  {
     getEditorContextMenu(win).popup({window:win});
+})
+
+ipcMain.handle("showMainMenu", (event, x, y) =>  {
+    console.log("showMainMenu", x , y)
+    menu.popup({
+        window: win,
+        x: x,
+        y: y,
+    });
+})
+
+ipcMain.handle("showTabContextMenu", (event, tabPath) =>  {
+    const menu = getTabContextMenu(win, tabPath)
+    menu.once("menu-will-close", () => {
+        win?.webContents.send(CONTEXT_MENU_CLOSED)
+    })
+    menu.popup({window: win});
+})
+
+ipcMain.handle("showSpellcheckingContextMenu", (event) => {
+    // the OS spellchecking API is used on Mac, so it's not possible to select languages
+    if (isMac) {
+        return
+    }
+    getSpellcheckingContextMenu(win).popup({window: win})
 })
 
 // Initialize note/file library
@@ -435,4 +548,12 @@ ipcMain.handle('settings:set', async (event, settings) => {
         initFileLibrary(win)
         await win.webContents.send("library:pathChanged")
     }
+})
+
+ipcMain.handle(SAVE_TABS_STATE, async (event, tabsState) => {
+    CONFIG.set("openTabsState", tabsState)
+})
+
+ipcMain.handle(LOAD_TABS_STATE, async (event) => {
+    return CONFIG.get("openTabsState")
 })

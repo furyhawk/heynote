@@ -1,9 +1,8 @@
 <script>
-    import slugify from '@sindresorhus/slugify';
-
     import { toRaw } from 'vue';
     import { mapState, mapActions } from 'pinia'
     import { useHeynoteStore } from "../stores/heynote-store"
+    import { filenameSlug } from "@/src/common/sanitize-filename"
 
     import FolderSelector from './folder-selector/FolderSelector.vue'
 
@@ -30,7 +29,6 @@
             this.$refs.nameInput.focus()
             this.updateBuffers()
 
-            console.log("EditNote mounted", this.currentNote)
             this.name = this.currentNote.name
 
             // build directory tree
@@ -135,7 +133,7 @@
             },
 
             submit() {
-                let slug = slugify(this.name)
+                let slug = filenameSlug(this.name)
                 if (slug === "") {
                     this.errors.name = true
                     return
@@ -149,7 +147,7 @@
                         // file name is ok if it's the current note, or if it doesn't exist
                         break
                     }
-                    slug = slugify(this.name + "-" + i)
+                    slug = filenameSlug(this.name + "-" + i)
                 }
                 if (path !== this.currentBufferPath && this.buffers[path]) {
                     console.error("Failed to edit note, path already exists", path)
@@ -169,7 +167,7 @@
     <div class="fader" @keydown.stop="onKeydown" tabindex="-1">
         <form class="new-note" tabindex="-1" @focusout="onFocusOut" ref="container" @submit.prevent="submit">
             <div class="container">
-                <h1>Edit Note</h1>
+                <h1>Edit Buffer</h1>
                 <input 
                     placeholder="Name"
                     type="text" 
@@ -191,7 +189,7 @@
                 />
             </div>
             <div class="bottom-bar">
-                <button type="submit">Update Note</button>
+                <button type="submit">Update Buffer</button>
                 <button 
                     class="cancel"
                     @keydown="onCancelKeydown"
@@ -204,6 +202,7 @@
 
 <style scoped lang="sass">    
     .fader
+        z-index: 400 // above the search panel which have z-index 300
         position: fixed
         top: 0
         left: 0

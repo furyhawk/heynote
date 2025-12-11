@@ -5,9 +5,11 @@ export const heynoteBase = EditorView.theme({
     ".cm-panels": {
         fontSize: "12px",
     },
+    ".cm-panels.cm-panels-top": {
+        borderBottom: "none",
+    },
     ".cm-panels .cm-panel": {
-        boxShadow: "0 0 10px rgba(0,0,0,0.15)",
-        padding: "8px 12px",
+        
     },
     '.cm-panels .cm-textfield': {
         fontSize: "1em",
@@ -65,17 +67,30 @@ export const heynoteBase = EditorView.theme({
     '.cm-foldGutter': {
         marginLeft: '0px',
     },
-    '.cm-foldGutter .cm-gutterElement': {
-        opacity: 0,
-        transition: "opacity 400ms",
+    '.cm-gutters .cm-gutterElement span': {
+        opacity: 1,
+        transition: "opacity 200ms",
     },
-    '.cm-gutters:hover .cm-gutterElement': {
+    '.cm-foldGutter .cm-gutterElement span[title*="Fold"]': {
+        opacity: 0,
+    },
+    '.cm-gutters:hover .cm-gutterElement span[title*="Fold"]': {
         opacity: 1,
     },
     '.cm-cursor, .cm-dropCursor': {
         borderLeftWidth:'2px', 
         paddingTop: '4px',
         marginTop: '-2px',
+        boxSizing: 'content-box',
+    },
+    '.cm-highlightSpace': {
+        'background-image': 'radial-gradient(circle at 50% 54%, #aaaaaa60 11%, transparent 5%)',
+    },
+    '.cm-highlightTab': {
+        'background-image': `url("data:image/svg+xml,%3C%3Fxml version='1.0' encoding='UTF-8' standalone='no'%3F%3E%3C!DOCTYPE svg PUBLIC '-//W3C//DTD SVG 1.1//EN' 'http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd'%3E%3Csvg width='100%25' height='100%25' viewBox='0 0 20 20' version='1.1' xmlns='http://www.w3.org/2000/svg' xmlns:xlink='http://www.w3.org/1999/xlink' xml:space='preserve' xmlns:serif='http://www.serif.com/' style='fill-rule:evenodd;clip-rule:evenodd;stroke-linejoin:round;stroke-miterlimit:2;'%3E%3Cg%3E%3Cpath d='M15.063,9.457l-12.424,0.061l0,0.978l12.518,-0.061l-2.48,2.526l0.7,0.707l2.917,-2.967l0.006,0.006l0.7,-0.707l-3.599,-3.657l-0.7,0.707l2.362,2.407Z' style='fill-opacity:0.15;'/%3E%3C/g%3E%3C/svg%3E")`,
+        'background-position': 'left 90%',
+        'background-size': 'auto 100%',
+        'background-repeat': 'no-repeat',
     },
     '.heynote-blocks-layer': {
         width: '100%',
@@ -121,5 +136,11 @@ export const heynoteBase = EditorView.theme({
     },
     '.heynote-link': {
         textDecoration: "underline",
+    },
+
+    ".cm-searchMatch": { backgroundColor: "#ffff00" },
+    ".cm-searchMatch-selected": {
+        backgroundColor: "#ffaa20",
+        outline: "1px solid #e46d00",
     },
 })

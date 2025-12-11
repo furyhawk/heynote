@@ -1,4 +1,4 @@
-export const keyHelpStr = (platform: string) => {
+export const keyHelpStr = (platform: string, extended: boolean = false) => {
     const modChar = platform === "darwin" ? "⌘" : "Ctrl"
     const altChar = platform === "darwin" ? "⌥" : "Alt"
 
@@ -12,6 +12,7 @@ export const keyHelpStr = (platform: string) => {
         [`${modChar} + N`, "Create a new note buffer"],
         [`${modChar} + S`, "Move the current block to another (or new) buffer"],
         [`${modChar} + P`, "Open note selector"],
+        [`${modChar} + Shift + P`, "Open command palette"],
         [`${modChar} + Down`, "Goto next block"],
         [`${modChar} + Up`, "Goto previous block"],
         [`${modChar} + A`, "Select all text in a note block. Press again to select the whole buffer"],
@@ -19,9 +20,14 @@ export const keyHelpStr = (platform: string) => {
         [`${altChar} + Shift + F`, "Format block content (works for JSON, JavaScript, HTML, CSS and Markdown)"],
     ]
 
-    if (platform === "win32" || platform === "linux") {
-        keyHelp.push([altChar, "Show menu"])
+    if (extended) {
+        keyHelp.push(
+            [`${modChar} + ${altChar} + [`, "Fold block(s)"],
+            [`${modChar} + ${altChar} + ]`, "Unfold block(s)"],
+            [`${modChar} + ${altChar} + .`, "Toggle block fold"],
+        )
     }
+    
     const keyMaxLength = keyHelp.map(([key]) => key.length).reduce((a, b) => Math.max(a, b))
 
     return keyHelp.map(([key, help]) => `${key.padEnd(keyMaxLength)}   ${help}`).join("\n")

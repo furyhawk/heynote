@@ -10,9 +10,18 @@ export const DELETE_BLOCK = "heynote-delete-block"
 export const CURSOR_CHANGE = "heynote-cursor-change"
 export const APPEND_BLOCK = "heynote-append-block"
 export const SET_FONT = "heynote-set-font"
+export const SEARCH_SETTINGS_UPDATED = "heynote-search-settings-updates"
 
 
 // This function checks if any of the transactions has the given Heynote annotation
 export function transactionsHasAnnotation(transactions, annotation) {
     return transactions.some(tr => tr.annotation(heynoteEvent) === annotation)
+}
+
+export function transactionsHasAnnotationsAny(transactions, annotations) {
+    return transactions.some(tr => annotations.includes(tr.annotation(heynoteEvent)))
+}
+
+export function transactionsHasHistoryEvent(transactions) {
+    return transactions.some(tr => tr.isUserEvent("undo") || tr.isUserEvent("redo"))
 }

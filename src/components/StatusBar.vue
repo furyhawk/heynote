@@ -3,6 +3,7 @@
     import UpdateStatusItem from './UpdateStatusItem.vue'
     import { LANGUAGES } from '../editor/languages.js'
     import { useHeynoteStore } from "../stores/heynote-store"
+    import { useSettingsStore } from "../stores/settings-store"
     
     const LANGUAGE_MAP = Object.fromEntries(LANGUAGES.map(l => [l.token, l]))
     const LANGUAGE_NAMES = Object.fromEntries(LANGUAGES.map(l => [l.token, l.name]))
@@ -19,7 +20,7 @@
 
         data() {
             return {
-                
+                isWebApp: window.heynote.platform.isWebApp,
             }
         },
 
@@ -35,6 +36,12 @@
                 "currentSelectionSize", 
                 "currentLanguage",
                 "currentLanguageAuto",
+            ]),
+            ...mapState(useSettingsStore, [
+                "spellcheckEnabled",
+                "alwaysOnTop",
+                "settings",
+                "commandKeyBindingsMap",
             ]),
 
             languageName() {
@@ -58,17 +65,21 @@
                 return `Format Block Content (Alt + Shift + F)`
             },
 
-            changeNoteTitle() {
-                return `Change Note (${this.cmdKey} + P)`
-            },
-
-            changeLanguageTitle() {
-                return `Change language for current block (${this.cmdKey} + L)`
-            },
-
             updatesEnabled() {
                 return !!window.heynote.autoUpdate
             },
+        },
+
+        methods: {
+            onSpellcheckingContextMenu(event) {
+                event.preventDefault()
+                window.heynote.mainProcess.invoke('showSpellcheckingContextMenu')
+            },
+
+            getTooltip(text, command) {
+                const bindings = this.commandKeyBindingsMap[command]
+                return bindings.length === 0 ? text : `${text} (${bindings[0]})`
+            }
         },
     }
 </script>
@@ -86,14 +97,14 @@
         <div 
             @click.stop="$emit('openBufferSelector')"
             class="status-block note clickable"
-            :title="changeNoteTitle"
+            :title="getTooltip('Change Note', 'openBufferSelector')"
         >
             {{ currentBufferName }} 
         </div>
         <div 
             @click.stop="$emit('openLanguageSelector')"
             class="status-block lang clickable"
-            :title="changeLanguageTitle"
+            :title="getTooltip('Change language for current block', 'openLanguageSelector')"
         >
             {{ languageName }} 
             <span v-if="currentLanguageAuto" class="auto">(auto)</span>
@@ -102,10 +113,30 @@
             v-if="supportsFormat"
             @click.stop="$emit('formatCurrentBlock')"
             class="status-block format clickable"
-            :title="formatBlockTitle"
+            :title="getTooltip('Format Block Content', 'formatBlockContent')"
         >
             <span class="icon icon-format"></span>
         </div>
+        <div 
+            @click.stop="$emit('toggleSpellcheck')"
+            @mousedown.prevent
+            @contextmenu="onSpellcheckingContextMenu"
+            :class="'status-block spellcheck clickable' + (this.spellcheckEnabled ? ' spellcheck-enabled' : '')"
+            :title="getTooltip('Spellchecking', 'toggleSpellcheck')"
+        >
+            <span class="icon icon-format"></span>
+        </div>
+
+        <div 
+            v-if="!isWebApp"
+            @click.stop="$emit('toggleAlwaysOnTop')"
+            @mousedown.prevent
+            class="status-block pin clickable"
+            :title="getTooltip('Pin', 'toggleAlwaysOnTop')"
+        >
+            <span class="icon icon-format" :class="{'pinned': alwaysOnTop}"></span>
+        </div>
+
         <UpdateStatusItem 
             v-if="updatesEnabled" 
             :autoUpdate="autoUpdate"
@@ -136,6 +167,8 @@
         flex-direction: row
         align-items: center
         user-select: none
+        white-space: nowrap
+        overflow: hidden
 
         .spacer
             flex-grow: 1
@@ -180,6 +213,29 @@
                 background-repeat: no-repeat
                 background-position: center center
                 background-image: url("@/assets/icons/format.svg")
+
+        .spellcheck
+            padding-top: 0
+            padding-bottom: 0
+            opacity: 1.0
+            .icon
+                background-size: 13px
+                background-repeat: no-repeat
+                background-position: center center
+                background-image: url("@/assets/icons/spellcheck-off.svg")
+            &.spellcheck-enabled .icon
+                background-image: url("@/assets/icons/spellcheck.svg")
+        
+        .pin
+            padding-top: 0
+            padding-bottom: 0
+            .icon   
+                background-size: 13px
+                background-repeat: no-repeat
+                background-position: center center
+                background-image: url("@/assets/icons/pin.svg")
+                &.pinned
+                    background-image: url("@/assets/icons/pin-pinned.svg")
         
         .settings
             padding-top: 0

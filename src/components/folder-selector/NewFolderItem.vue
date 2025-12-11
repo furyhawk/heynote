@@ -1,5 +1,5 @@
 <script>
-    import sanitizeFilename from "./sanitize-filename.js"
+    import { sanitizeFilename } from "@/src/common/sanitize-filename.js"
 
     export default {
         props: {
@@ -96,7 +96,7 @@
             border: none
             border-radius: 2px
             font-size: 13px
-            height: 16px
+            height: 22px
             padding: 2px 4px
             font-style: italic
             border: 2px solid #48b57e

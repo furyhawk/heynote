@@ -18,17 +18,20 @@ const isDevelopment = process.env.NODE_ENV === "development" || !!process.env.VS
 const isProduction = process.env.NODE_ENV === "production"
 
 const injectKeybindsInDocs = async () => {
-	const keybindsRegex = /^(<!-- keyboard_shortcuts -->\s*).*?^(```\s+#)/gms
+	const keybindsRegex = /^(<!-- keyboard_shortcuts -->\s*).*?^(\s+#)/gms
 	const shortcuts = `$1**On Mac**
 
 \`\`\`
-${keyHelpStr('darwin')}
+${keyHelpStr('darwin', true)}
 \`\`\`
 
 **On Windows and Linux**
 
 \`\`\`
-${keyHelpStr('win32')}
+${keyHelpStr('win32', true)}
+\`\`\`
+
+You can see all the key bindings in the command palette and in Settings under Key Bindings.
 $2`
 	const docsPath = path.resolve(__dirname, 'docs', 'index.md')
 	let docs = fs.readFileSync(docsPath, 'utf-8')

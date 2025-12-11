@@ -2,7 +2,95 @@
 
 Here are the most notable changes in each release. For a more detailed list of changes, see the [Github Releases page](https://github.com/heyman/heynote/releases).
 
-## 2.2.1 (not released yet)
+## 2.6.2
+
+- Update to latest version of Electron to fix issue making Heynote unusable on latest version of Mac OS (Tahoe)
+- Fix issue that would break Math blocks with a large number of lines (the parser would not start processing 
+  rows from the beginning of the block)
+- Fix issue with not being able to hide window after toggling alwaysOnTop (on Mac)
+
+## 2.6.1
+
+- Fix crash when no custom key binding had been set
+
+## 2.6.0
+
+- Add setting for rendering white-space (spaces as dots and tabs as arrows)
+- Show key bindings in Command Palette
+- When displaying key bindings show shorter version with ⇧, ⌘, ⌥, etc instead of Shift, Cmd, Alt, etc
+- Fixed so that tooltips displays new key binding if the default have been overridden
+
+
+## 2.5.0
+
+### Tabs
+
+You now get a visual representation of open buffers in the form of tabs. The tabs are integrated in the menu bar to take up as little screen real estate as possible, and they can also be turned off - completely or just in fullscreen mode - in the settings. 
+
+### Spellchecking
+
+It's now possible to turn on/off spellchecking. This can be done by clicking the spellchecking icon in the status bar. There are also heynote commands that can be bound to custom keys to enable/disable/toggle spellchecking.
+
+### Other fixes and improvements
+
+- Added a pin icon to the status bar that can be used to toggle the "Always on top" setting (to make the windows float on top of other programs).
+- Added toggleAlwaysOnTop command that can be used to bind a key that toggles the "Always on top setting".
+- Remember the open buffer(s) between program restarts.
+- Fixed so that Alt-clicking on an cursor removes it (if more than one cursor exists).
+- Changed the key binding for rectangular selection from Alt+Click to Alt+Shift+Click.
+- Fixed issue where the window position wouldn't be properly restored in some cases.
+- Updated to latest version of Electron.
+
+
+## 2.4.0
+
+### Improved  search functionality
+
+The new search (and replace) dialog has an improved UI and is now "block aware", meaning that one can choose to search within the current block or across all blocks. The search settings (within the current block, case sensitivity, whole words) also affects the `Cmd/Ctrl-D` command for selecting the next occurrence of the current selection.
+
+### Other fixes and improvements
+
+- Fix issues with todo lists checkboxes in Markdown blocks
+- Fix issue with markdown blocks sometimes not being fully folded
+
+## 2.3.3
+
+- Prevent blocks from unfolding when changing the block language
+- Fix issue toggling the fold gutter setting
+
+## 2.3.2
+
+- Improve folding to be less aggressive with the unfolding (e.g. when creating a new block after a folded block, and then immediately pressing backspace to remove the new block)
+
+## 2.3.1
+
+- Fix issue with the cursor being a few pixels too short
+- Fix issue where one could remove characters within a folded block without it getting unfolded
+
+## 2.3.0
+
+### Improved support for folding blocks
+
+- Fixed an issue where some types of blocks could not be folded. 
+- The fold state is now stored in the buffer file so that it's persisted between sessions. 
+- Added three new commands for folding and unfolding blocks:
+  - `foldBlock` - Folds the current/selected block(s). Default key binding is `Ctrl-Alt-[` on Windows/Linux and `Cmd-Option-[` on Mac.
+  - `unfoldBlock` - Unfolds the current/selected block(s). Default key binding is `Ctrl-Alt-]` on Windows/Linux and `Cmd-Option-]` on Mac.
+  - `toggleFoldBlock` - Toggles the fold state of the current/selected block. Default key binding is `Ctrl-Alt-.` on Windows/Linux and `Cmd-Option-.` on Mac.
+- Folded blocks now display the first 50 characters of the block content, as well as the number of lines in the block.
+- Default key bindings for folding code on Mac changed from `Cmd-Option-[` and `Cmd-Option-]` to `Cmd-Shift-[` and `Cmd-Shift-]` (to avoid conflicts with the new block folding commands)
+
+### Other features and fixes
+
+- Add document navigation commands (Ctrl+Home/End)
+- Fix wrong positioning if IME interface (for Chinese input)
+- Prevent editor from loosing focus when line number/fold gutter is clicked
+
+## 2.2.2
+
+- Fix issue when changing settings after having upgraded to Heynote 2.2 from an earlier version
+
+## 2.2.1
 
 ### Bug Fixes
 

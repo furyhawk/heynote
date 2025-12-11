@@ -2,28 +2,31 @@
 
 [Changelog](/docs/changelog/)
 
-Heynote is a dedicated scratchpad for developers. It functions as a large persistent text buffer where you can write down anything you like. Works great for that Slack message you don't want to accidentally send, a JSON response from an API you're working with, notes from a meeting, your daily to-do list, etc. 
+Heynote is a dedicated scratchpad. It functions as a large persistent text buffer where you can write down anything you like. Works great for that Slack message you don't want to accidentally send, a JSON response from an API you're working with, notes from a meeting, your daily to-do list, etc. 
 
-The Heynote buffer is divided into blocks, and each block can have its own Language set (e.g. JavaScript, JSON, Markdown, etc.). This gives you syntax highlighting and lets you auto-format that JSON response.
+The Heynote buffer is divided into blocks, and each block can have its own mode set (e.g. JavaScript, JSON, Markdown, etc.). This gives you syntax highlighting and lets you auto-format that JSON response.
 
 Available for Mac, Windows, and Linux.
 
 ## Features
 
--   Persistent text buffer
+-   Persistent text buffer(s)
 -   Block-based
+-   Multiple buffers in tabs
+-   Math/Calculator mode
+-   Currency conversion
 -   Syntax highlighting:
 
     C++, C#, Clojure, CSS, Elixir, Erlang, Dart, Go, Groovy, HTML, Java, JavaScript, JSX, Kotlin, TypeScript, TOML, TSX, JSON, Lezer, Markdown, PHP, Python, Ruby, Rust, Scala, Shell, SQL, Swift, Vue, XML, YAML
-
+    
 -   Language auto-detection
 -   Auto-formatting
--   Math/Calculator mode
--   Currency conversion
 -   Multi-cursor editing
 -   Dark & Light themes
 -   Option to set a global hotkey to show/hide the app
--   Default or Emacs-like key bindings
+-   Default, Emacs-like or custom key bindings
+-   Spellchecking
+
 
 ## Default Key Bindings
 
@@ -41,11 +44,15 @@ Available for Mac, Windows, and Linux.
 ⌘ + N               Create a new note buffer
 ⌘ + S               Move the current block to another (or new) buffer
 ⌘ + P               Open note selector
+⌘ + Shift + P       Open command palette
 ⌘ + Down            Goto next block
 ⌘ + Up              Goto previous block
 ⌘ + A               Select all text in a note block. Press again to select the whole buffer
 ⌘ + ⌥ + Up/Down     Add additional cursor above/below
 ⌥ + Shift + F       Format block content (works for JSON, JavaScript, HTML, CSS and Markdown)
+⌘ + ⌥ + [           Fold block(s)
+⌘ + ⌥ + ]           Unfold block(s)
+⌘ + ⌥ + .           Toggle block fold
 ```
 
 **On Windows and Linux**
@@ -60,19 +67,28 @@ Ctrl + L               Change block language
 Ctrl + N               Create a new note buffer
 Ctrl + S               Move the current block to another (or new) buffer
 Ctrl + P               Open note selector
+Ctrl + Shift + P       Open command palette
 Ctrl + Down            Goto next block
 Ctrl + Up              Goto previous block
 Ctrl + A               Select all text in a note block. Press again to select the whole buffer
 Ctrl + Alt + Up/Down   Add additional cursor above/below
 Alt + Shift + F        Format block content (works for JSON, JavaScript, HTML, CSS and Markdown)
-Alt                    Show menu
+Ctrl + Alt + [         Fold block(s)
+Ctrl + Alt + ]         Unfold block(s)
+Ctrl + Alt + .         Toggle block fold
 ```
+
+You can see all the key bindings in the command palette and in Settings under Key Bindings.
+
+
 
 ## Custom Key Bindings
 
 Heynote supports custom key bindings which you can configure in the settings. The key bindings are evaluated from top to bottom, so a binding that comes before another one will take precedence. Most commands will stop the event from propagating, but some commands only applies in certain contexts and might not stop the event from propagating to a later key binding. 
 
 To disable one of the built in key bindings, you can add a new key binding with the same key combination for the command "Do nothing". This will stop the event from propagating to the built in key binding.
+
+You can see all available commands that can be bound to keys in the command palette which can be opened by pressing `⌘ + ⇧ + P` on Mac and `Ctrl + ⇧ + P` on Windows/Linux.
 
 ## Download/Installation
 
@@ -131,6 +147,11 @@ Heynote is built to support synchronizing the notes library (or buffer file in t
 When using a file synching service that support "offloading" of files in the cloud (removing them from the disk), it's recommended to mark the notes library as "always available offline".
 
 As always, backup things that are important.
+
+
+### Spellchecking
+
+Spellchecking can be toggled on or off by clicking the spellchecking icon in the status bar. Right-clicking the icon on Windows and Linux allows you to select the active dictionaries (on Mac, the default OS dictionary is used).  
 
 
 ## Linux

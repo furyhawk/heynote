@@ -11,28 +11,30 @@
 - [Documentation](https://heynote.com/docs/)
 - [Changelog](https://heynote.com/docs/changelog/)
 
-Heynote is a dedicated scratchpad for developers. It functions as a large persistent text buffer where you can write down anything you like. Works great for that Slack message you don't want to accidentally send, a JSON response from an API you're working with, notes from a meeting, your daily to-do list, etc. 
+Heynote is a dedicated scratchpad for developers and power users. It functions as a large persistent text buffer where you can write down anything you like. Works great for that Slack message you don't want to accidentally send, a JSON response from an API you're working with, notes from a meeting, your daily to-do list, etc. 
 
-The Heynote buffer is divided into blocks, and each block can have its own Language set (e.g. JavaScript, JSON, Markdown, etc.). This gives you syntax highlighting and lets you auto-format that JSON response.
+Heynote buffers is divided into blocks, and each block can have its own Language set (e.g. JavaScript, JSON, Markdown, etc.). This gives you syntax highlighting and lets you auto-format that JSON response.
 
 Available for Mac, Windows, and Linux.
 
 ## Features
 
--   Persistent text buffer
+-   Persistent text buffer(s)
 -   Block-based
+-   Multiple buffers in tabs
+-   Math/Calculator mode
+-   Currency conversion
 -   Syntax highlighting:
 
-    C++, C#, Clojure, CSS, Erlang, Dart, Go, Groovy, HTML, Java, JavaScript, JSX, Kotlin, TypeScript, TOML, TSX, JSON, Lezer, Markdown, PHP, Python, Ruby, Rust, Scala, Shell, SQL, Swift, Vue, XML, YAML
+    C++, C#, Clojure, CSS, Elixir, Erlang, Dart, Go, Groovy, HTML, Java, JavaScript, JSX, Kotlin, TypeScript, TOML, TSX, JSON, Lezer, Markdown, PHP, Python, Ruby, Rust, Scala, Shell, SQL, Swift, Vue, XML, YAML
     
 -   Language auto-detection
 -   Auto-formatting
--   Math/Calculator mode
--   Currency conversion
 -   Multi-cursor editing
 -   Dark & Light themes
 -   Option to set a global hotkey to show/hide the app
--   Default or Emacs-like key bindings
+-   Default, Emacs-like or custom key bindings
+-   Spellchecking
 
 
 ## Documentation
@@ -81,6 +83,7 @@ No, at the moment this is out of scope, sorry.
 ### What are the default keyboard shortcuts?
 
 See the [documentation](https://heynote.com/docs/#user-content-default-key-bindings).
+
 
 ## Thanks!
 

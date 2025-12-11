@@ -1,13 +1,11 @@
 <script>
     import { syntaxTree } from "@codemirror/language"
     import { toRaw } from 'vue';
-    import { mapState, mapWritableState, mapActions, mapStores } from 'pinia'
-    import { useErrorStore } from "../stores/error-store"
+    import { mapState, mapWritableState, mapStores } from 'pinia'
     import { useHeynoteStore } from "../stores/heynote-store.js"
     import { useEditorCacheStore } from "../stores/editor-cache"
     import { REDO_EVENT, WINDOW_CLOSE_EVENT, DELETE_BLOCK_EVENT, UNDO_EVENT, SELECT_ALL_EVENT } from '@/src/common/constants';
 
-    const NUM_EDITOR_INSTANCES = 5
 
     export default {
         props: {
@@ -37,9 +35,8 @@
 
             // set up window close handler that will save the buffer and quit
             this.onWindowClose = () => {
-                window.heynote.buffer.saveAndQuit([
-                    [this.editor.path, this.editor.getContent()],
-                ])
+                //console.log("content to save:", JSON.stringify(this.editorCacheStore.getContentToSave()))
+                window.heynote.buffer.saveAndQuit(this.editorCacheStore.getAllBufferContent())
             }
             window.heynote.mainProcess.on(WINDOW_CLOSE_EVENT, this.onWindowClose)
 
@@ -81,11 +78,16 @@
             // if debugSyntaxTree prop is set, display syntax tree for debugging
             if (this.debugSyntaxTree) {
                 setInterval(() => {
+                    const cursorPos = this.editor.view.state.selection.main.head
                     function render(tree) {
                         let lists = ''
                         tree.iterate({
                             enter(type) {
-                                lists += `<ul><li>${type.name} (${type.from},${type.to})`
+                                let className = ""
+                                if (type.from !== 0 && cursorPos > type.from && cursorPos <= type.to) {
+                                    className = "active"
+                                }
+                                lists += `<ul><li class="${className}">${type.name} (${type.from},${type.to})`
                             },
                             leave() {
                                 lists += '</ul>'
@@ -137,15 +139,10 @@
                     this.editor.hide()
                 }
 
-                let cachedEditor = this.editorCacheStore.getEditor(path)
-                if (cachedEditor) {
-                    //console.log("show cached editor")
-                    this.editor = cachedEditor
-                    toRaw(this.editor).show()
-                } else {
-                    //console.log("create new editor")
-                    this.editor = this.editorCacheStore.createEditor(path)
-                    this.editorCacheStore.addEditor(path, toRaw(this.editor))
+                const [editor, created] = this.editorCacheStore.getOrCreateEditor(path)
+                this.editor = editor
+                if (!created) {
+                    toRaw(editor).show()
                 }
 
                 this.currentEditor = toRaw(this.editor)
@@ -191,7 +188,7 @@
     </div>
 </template>
 
-<style lang="sass" scoped>
+<style lang="sass">
     .debug-syntax-tree
         position: absolute
         top: 0
@@ -204,6 +201,9 @@
         font-family: monospace
         padding: 10px
         overflow: auto
+
+        li.active
+            background-color: rgba(255, 255, 0, 0.5)
 
         ul
             padding-left: 20px

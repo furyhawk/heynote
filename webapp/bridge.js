@@ -1,5 +1,4 @@
-import { Exception } from "sass";
-import { SETTINGS_CHANGE_EVENT, OPEN_SETTINGS_EVENT } from "@/src/common/constants";
+import { SETTINGS_CHANGE_EVENT, OPEN_SETTINGS_EVENT, SAVE_TABS_STATE, LOAD_TABS_STATE, WINDOW_CLOSE_EVENT } from "@/src/common/constants";
 import { NoteFormat } from "../src/common/note-format";
 
 const NOTE_KEY_PREFIX = "heynote-library__"
@@ -90,6 +89,8 @@ let initialSettings = {
     showFoldGutter: true,
     bracketClosing: false,
     keyBindings: [],
+    showTabs: true,
+    showTabsInFullscreen: true,
 }
 if (settingsData !== null) {
     initialSettings = Object.assign(initialSettings, JSON.parse(settingsData))
@@ -171,7 +172,9 @@ const Heynote = {
         },
 
         async saveAndQuit(contents) {
-            
+            for (const [path, content] of contents) {
+                localStorage.setItem(noteKey(path), content)
+            }
         },
 
         async exists(path) {
@@ -186,6 +189,9 @@ const Heynote = {
                     const path = key.slice(NOTE_KEY_PREFIX.length)
                     notes[path] = getNoteMetadata(content)
                 }
+            }
+            if (notes["scratch.txt"] === undefined) {
+                notes["scratch.txt"] = {name: "Scratch"}
             }
             return notes
         },
@@ -220,6 +226,10 @@ const Heynote = {
         },
 
         pathSeparator: "/",
+
+        setLibraryPathChangeCallback(callback) {
+            
+        },
     },
 
     mainProcess: {
@@ -232,7 +242,17 @@ const Heynote = {
         },
 
         invoke(event, ...args) {
-            
+            switch (event) {
+                case SAVE_TABS_STATE:
+                    localStorage.setItem("openTabsState", JSON.stringify(args[0]))
+                    break;
+                case LOAD_TABS_STATE:
+                    const tabsState = localStorage.getItem("openTabsState")
+                    if (tabsState) {
+                        return JSON.parse(tabsState)
+                    }
+                    return undefined
+            }
         }
     },
 
@@ -287,5 +307,7 @@ const Heynote = {
         document.title = title + " - Heynote"
     },
 }
+
+window.addEventListener("beforeunload", () => ipcRenderer.send(WINDOW_CLOSE_EVENT))
 
 export { Heynote, ipcRenderer}

@@ -39,6 +39,8 @@ const schema = {
 
             "showLineNumberGutter": {type: "boolean", default:true},
             "showFoldGutter": {type: "boolean", default:true},
+            "showTabs": {type: "boolean", default: true},
+            "showTabsInFullscreen": {type: "boolean", default: true},
             "autoUpdate": {type: "boolean", default: true},
             "allowBetaVersions": {type: "boolean", default: false},
             "enableGlobalHotkey": {type: "boolean", default: false},
@@ -52,16 +54,47 @@ const schema = {
             "tabSize": {type: "integer", default: 4},
             "defaultBlockLanguage": {type: "string"},
             "defaultBlockLanguageAutoDetect": {type: "boolean"},
+            "spellcheckEnabled": {type: "boolean", default:false},
+            "showWhitespace": {type:"boolean", default:false},
 
             // when default font settings are used, fontFamily and fontSize is not specified in the 
             // settings file, so that it's possible for us to change the default settings in the 
             // future and have it apply to existing users
             "fontFamily": {type: "string"}, 
-            "fontSize": {type: "integer"},  
+            "fontSize": {type: "integer"}, 
+
+            "searchSettings": {
+                type: "object",
+                properties: {
+                    onlyCurrentBlock: {type: "boolean"},
+                    caseSensitive: {type: "boolean"},
+                    wholeWord: {type: "boolean"},
+                    regexp: {type: "boolean"},
+                },
+            },
         },
     },
 
     theme: {type: "string", default: "system"},
+
+    openTabsState: {
+        type: "object",
+        properties: {
+            currentBufferPath: {type: "string"},
+            openTabs: {
+                type: "array",
+                items: {
+                    type: "string",
+                },
+            },
+            recentBuffers: {
+                type: "array",
+                items: {
+                    type: "string",
+                },
+            },
+        },
+    },
 
     currency: {
         type: "object",
@@ -90,6 +123,14 @@ const defaults = {
         bracketClosing: false,
         indentType: "space",
         tabSize: 4,
+        searchSettings: {
+            onlyCurrentBlock: true,
+            caseSensitive: false,
+            wholeWord: false,
+            regexp: false,
+        },
+        spellcheckEnabled: false,
+        showWhitespace: false,
     },
     theme: "system",
 }

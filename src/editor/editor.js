@@ -1,6 +1,6 @@
-import { Annotation, EditorState, Compartment, Facet, EditorSelection, Transaction, Prec } from "@codemirror/state"
-import { EditorView, keymap as cmKeymap, drawSelection, ViewPlugin, lineNumbers } from "@codemirror/view"
-import { foldGutter, ensureSyntaxTree } from "@codemirror/language"
+import { Annotation, EditorState, Compartment, Facet, EditorSelection, Transaction, Prec, RangeSet } from "@codemirror/state"
+import { EditorView, keymap as cmKeymap, drawSelection, highlightWhitespace } from "@codemirror/view"
+import { ensureSyntaxTree, foldState, foldEffect } from "@codemirror/language"
 import { markdown, markdownKeymap } from "@codemirror/lang-markdown"
 import { undo, redo } from "@codemirror/commands"
 
@@ -27,6 +27,15 @@ import { NoteFormat } from "../common/note-format.js"
 import { AUTO_SAVE_INTERVAL } from "../common/constants.js"
 import { useHeynoteStore } from "../stores/heynote-store.js";
 import { useErrorStore } from "../stores/error-store.js";
+import { foldGutterExtension } from "./fold-gutter.js"
+import { heynoteSearch } from "./search/search.js"
+import { spellcheckConfig } from "./spell-check.js"
+
+
+// Turn off the use of EditContext, since Chrome has a bug (https://issues.chromium.org/issues/351029417) 
+// that causes it to position the IME interface (for chinese input) incorrectly. One the bug is fixed (in Electron) 
+// we should be able to remove this. For more details see: https://github.com/heyman/heynote/issues/343
+EditorView.EDIT_CONTEXT = false
 
 
 export class HeynoteEditor {
@@ -48,6 +57,8 @@ export class HeynoteEditor {
         defaultBlockToken,
         defaultBlockAutoDetect,
         keyBindings,
+        spellcheckEnabled=false,
+        showWhitespace=false,
     }) {
         this.element = element
         this.path = path
@@ -59,9 +70,12 @@ export class HeynoteEditor {
         this.readOnlyCompartment = new Compartment
         this.closeBracketsCompartment = new Compartment
         this.indentUnitCompartment = new Compartment
+        this.highlightWhitespaceCompartment = new Compartment
         this.deselectOnCopy = keymap === "emacs"
         this.emacsMetaKey = emacsMetaKey
         this.fontTheme = new Compartment
+        this.spellcheckEnabled = spellcheckEnabled
+        this.spellcheckCompartment = new Compartment
         this.setDefaultBlockLanguage(defaultBlockToken, defaultBlockAutoDetect)
         this.contentLoaded = false
         this.notesStore = useHeynoteStore()
@@ -77,9 +91,9 @@ export class HeynoteEditor {
                 heynoteCopyCut(this),
 
                 //minimalSetup,
-                this.lineNumberCompartment.of(showLineNumberGutter ? [lineNumbers(), blockLineNumbers] : []),
+                this.lineNumberCompartment.of(showLineNumberGutter ? blockLineNumbers : []),
                 customSetup, 
-                this.foldGutterCompartment.of(showFoldGutter ? [foldGutter()] : []),
+                this.foldGutterCompartment.of(showFoldGutter ? [foldGutterExtension()] : []),
                 this.closeBracketsCompartment.of(bracketClosing ? [getCloseBracketsExtensions()] : []),
 
                 this.readOnlyCompartment.of([]),
@@ -91,6 +105,7 @@ export class HeynoteEditor {
                 EditorView.scrollMargins.of(f => {
                     return {top: 80, bottom: 80}
                 }),
+                heynoteSearch,
                 heynoteLang(),
                 noteBlockExtension(this),
                 languageDetection(path, () => this),
@@ -108,10 +123,14 @@ export class HeynoteEditor {
                 // Markdown extensions, we need to add markdownKeymap manually with the highest precedence
                 // so that it takes precedence over the default keymap
                 todoCheckboxPlugin,
-                markdown({addKeymap: false}),
+                // don't use the markdown extension, because it messes up the block folding
+                //markdown({addKeymap: false}),
                 Prec.highest(cmKeymap.of(markdownKeymap)),
 
                 links,
+
+                this.spellcheckCompartment.of(spellcheckConfig(this.spellcheckEnabled)),
+                this.highlightWhitespaceCompartment.of(showWhitespace ? highlightWhitespace() : [])
             ],
         })
 
@@ -158,6 +177,13 @@ export class HeynoteEditor {
     getContent() {
         this.note.content = this.view.state.sliceDoc()
         this.note.cursors = this.view.state.selection.toJSON()
+
+        // fold state
+        const foldedRanges = []
+        this.view.state.field(foldState, false)?.between(0, this.view.state.doc.length, (from, to) => {
+            foldedRanges.push({from, to})
+        })
+        this.note.foldedRanges = foldedRanges
         
         const ranges = this.note.cursors.ranges
         if (ranges.length == 1 && ranges[0].anchor == 0 && ranges[0].head == 0) {
@@ -171,7 +197,6 @@ export class HeynoteEditor {
         //console.log("loading content", this.path)
         const content = await window.heynote.buffer.load(this.path)
         this.diskContent = content
-        this.contentLoaded = true
 
         // set up content change listener
         this.onChange = (content) => {
@@ -181,6 +206,7 @@ export class HeynoteEditor {
         window.heynote.buffer.addOnChangeCallback(this.path, this.onChange)
 
         await this.setContent(content)
+        this.contentLoaded = true
     }
 
     setContent(content) {
@@ -224,6 +250,10 @@ export class HeynoteEditor {
                         scrollIntoView: true,
                     })
                 }
+                // set folded ranges
+                this.view.dispatch({
+                    effects: this.note.foldedRanges.map(range => foldEffect.of(range)),
+                })
                 resolve()
             })
         })
@@ -281,24 +311,17 @@ export class HeynoteEditor {
         })
     }
 
-    openLanguageSelector() {
-        this.notesStore.openLanguageSelector()
+    setSpellcheckEnabled(enabled) {
+        this.spellcheckEnabled = enabled
+        this.view.dispatch({
+            effects: this.spellcheckCompartment.reconfigure(spellcheckConfig(this.spellcheckEnabled)),
+        })
     }
 
-    openBufferSelector() {
-        this.notesStore.openBufferSelector()
-    }
-
-    openCommandPalette() {
-        this.notesStore.openCommandPalette()
-    }
-
-    openCreateBuffer(createMode) {
-        this.notesStore.openCreateBuffer(createMode)
-    }
-
-    openMoveToBufferSelector() {
-        this.notesStore.openMoveToBufferSelector()
+    setShowWhitespace(enabled) {
+        this.view.dispatch({
+            effects: this.highlightWhitespaceCompartment.reconfigure(enabled ? highlightWhitespace() : []),
+        })
     }
 
     async createNewBuffer(path, name) {
@@ -363,13 +386,13 @@ export class HeynoteEditor {
 
     setLineNumberGutter(show) {
         this.view.dispatch({
-            effects: this.lineNumberCompartment.reconfigure(show ? [lineNumbers(), blockLineNumbers] : []),
+            effects: this.lineNumberCompartment.reconfigure(show ? blockLineNumbers : []),
         })
     }
 
     setFoldGutter(show) {
         this.view.dispatch({
-            effects: this.foldGutterCompartment.reconfigure(show ? [foldGutter()] : []),
+            effects: this.foldGutterCompartment.reconfigure(show ? foldGutterExtension() : []),
         })
     }
 
