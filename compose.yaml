@@ -12,7 +12,7 @@ services:
   server:
     build:
       context: .
-    image: furyhawk/heynote:${TAG:-latest}
+    image: docker.io/furyhawk/heynote:${TAG:-latest}
     container_name: heynote
     restart: always
     environment:
