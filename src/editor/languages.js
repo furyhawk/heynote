@@ -13,6 +13,7 @@ import { xmlLanguage } from "@codemirror/lang-xml"
 import { rustLanguage } from "@codemirror/lang-rust"
 import { csharpLanguage } from "@replit/codemirror-lang-csharp"
 import { vueLanguage } from "@codemirror/lang-vue";
+import { mermaidLanguage } from 'codemirror-lang-mermaid';
 
 import { StreamLanguage } from "@codemirror/language"
 import { ruby } from "@codemirror/legacy-modes/mode/ruby"
@@ -28,6 +29,7 @@ import { kotlin, dart, scala } from "@codemirror/legacy-modes/mode/clike"
 import { groovy } from "@codemirror/legacy-modes/mode/groovy"
 import { diff } from "@codemirror/legacy-modes/mode/diff";
 import { powerShell } from "@codemirror/legacy-modes/mode/powershell";
+import { lua } from "@codemirror/legacy-modes/mode/lua";
 
 import typescriptPlugin from "prettier/plugins/typescript"
 import babelPrettierPlugin from "prettier/plugins/babel"
@@ -37,6 +39,8 @@ import markdownPrettierPlugin from "prettier/plugins/markdown"
 import yamlPrettierPlugin from "prettier/plugins/yaml"
 import * as prettierPluginEstree from "prettier/plugins/estree";
 
+import { mathjsLanguage } from "heynote-lang-mathjs"
+
 
 class Language {
     /**
@@ -45,13 +49,16 @@ class Language {
      * @param parser: The Lezer parser used to parse the language
      * @param guesslang: The name of the language as used by the guesslang library
      * @param prettier: The prettier configuration for the language (if any)
+     * @param inheritIndentation: If true, the indentService will return null for blocks of this type, which will 
+     *                            result in the  line inheriting the indentation of the one above it
      */
-    constructor({ token, name, parser, guesslang, prettier }) {
+    constructor({ token, name, parser, guesslang, prettier, inheritIndentation }) {
         this.token = token
         this.name = name
         this.parser = parser
         this.guesslang = guesslang
         this.prettier = prettier
+        this.inheritIndentation = inheritIndentation
     }
 
     get supportsFormat() {
@@ -65,12 +72,14 @@ export const LANGUAGES = [
         name: "Plain Text",
         parser: null,
         guesslang: null,
+        inheritIndentation: true,
     }),
     new Language({
         token: "math",
         name: "Math",
-        parser: null,
+        parser: mathjsLanguage.parser,
         guesslang: null,
+        inheritIndentation: true,
     }),
     new Language({
         token: "json",
@@ -97,6 +106,7 @@ export const LANGUAGES = [
         name: "SQL",
         parser: StandardSQL.language.parser,
         guesslang: "sql",
+        inheritIndentation: true,
     }),
     new Language({
         token: "markdown",
@@ -244,6 +254,12 @@ export const LANGUAGES = [
         guesslang: "kt",
     }),
     new Language({
+        token: "lua",
+        name: "Lua",
+        parser: StreamLanguage.define(lua).parser,
+        guesslang: "lua",
+    }),
+    new Language({
         token: "groovy",
         name: "Groovy",
         parser: StreamLanguage.define(groovy).parser,
@@ -278,7 +294,13 @@ export const LANGUAGES = [
         name: "Scala",
         parser: StreamLanguage.define(scala).parser,
         guesslang: "scala",
-    }), 
+    }),
+    new Language({
+        token: "mermaid",
+        name: "Mermaid",
+        parser: mermaidLanguage.parser ,
+        guesslang: null,
+    }),
 ]
 
 

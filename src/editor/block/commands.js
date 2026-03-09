@@ -1,16 +1,14 @@
 import { EditorSelection, Transaction } from "@codemirror/state"
+import { EditorView } from "@codemirror/view"
 
 import { heynoteEvent, LANGUAGE_CHANGE, CURRENCIES_LOADED, ADD_NEW_BLOCK, MOVE_BLOCK, DELETE_BLOCK } from "../annotation.js";
 import { blockState, getActiveNoteBlock, getFirstNoteBlock, getLastNoteBlock, getNoteBlockFromPos, delimiterRegex } from "./block"
 import { moveLineDown, moveLineUp } from "./move-lines.js";
 import { selectAll } from "./select-all.js";
+import { getBlockDelimiter } from "./block-parsing.js"
 
 export { moveLineDown, moveLineUp, selectAll }
 
-
-export function getBlockDelimiter(defaultToken, autoDetect) {
-    return `\n∞∞∞${autoDetect ? defaultToken + '-a' : defaultToken}\n`
-}
 
 export const insertNewBlockAtCursor = (editor) => ({ state, dispatch }) => {
     if (state.readOnly)
@@ -19,7 +17,7 @@ export const insertNewBlockAtCursor = (editor) => ({ state, dispatch }) => {
     const currentBlock = getActiveNoteBlock(state)
     let delimText;
     if (currentBlock) {
-        delimText = `\n∞∞∞${currentBlock.language.name}${currentBlock.language.auto ? "-a" : ""}\n`
+        delimText = getBlockDelimiter(currentBlock.language.name, currentBlock.language.auto)
     } else {
         delimText = getBlockDelimiter(editor.defaultBlockToken, editor.defaultBlockAutoDetect)
     }
@@ -116,16 +114,26 @@ export const addNewBlockAfterLast = (editor) => ({ state, dispatch }) => {
     return true;
 }
 
+export const addNewBlockAfterLastAndScrollDown = (editor) => (view) => {
+    addNewBlockAfterLast(editor)(view)
+    view.scrollDOM.scrollTop = view.scrollDOM.scrollHeight
+    return true;
+}
+
 export function changeLanguageTo(state, dispatch, block, language, auto) {
     if (state.readOnly)
         return false
     if (state.doc.sliceString(block.delimiter.from, block.delimiter.to).match(delimiterRegex)) {
         //console.log("changing language to", language)
+        let createdMetadata = ""
+        if (block.created) {
+            createdMetadata = ";created=" + block.created
+        }
         dispatch(state.update({
             changes: {
                 from: block.delimiter.from,
                 to: block.delimiter.to,
-                insert: `\n∞∞∞${language}${auto ? '-a' : ''}\n`,
+                insert: `\n∞∞∞${language}${auto ? '-a' : ''}${createdMetadata}\n`,
             },
             annotations: [heynoteEvent.of(LANGUAGE_CHANGE)],
         }))

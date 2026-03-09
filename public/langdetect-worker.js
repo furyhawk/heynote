@@ -1,6 +1,6 @@
 importScripts("guesslang.min.js")
 
-GUESSLANG_LANGUAGES = ["json","py","html","sql","md","java","php","css","xml","cpp","rs","cs","rb","sh","yaml","toml","go","clj","ex","erl","js","ts","swift","kt","groovy","ps1","dart","scala"]
+GUESSLANG_LANGUAGES = ["json","py","html","sql","md","java","php","css","xml","cpp","rs","cs","rb","sh","yaml","toml","go","clj","ex","erl","js","ts","swift","kt","lua","groovy","ps1","dart","scala"]
 
 const guessLang = new self.GuessLang()
 
@@ -40,7 +40,7 @@ onmessage = (event) => {
     //let startTime = performance.now()
     guessLang.runModel(content).then((result) => {
         //const duration = performance.now() - startTime
-        console.log("Guessing language done:", result, result[0]?.languageId, result[0]?.confidence)
+        //console.log("Guessing language done:", result, result[0]?.languageId, result[0]?.confidence)
         //console.log("Guessing language took", duration, "ms")
 
         if (result.length > 0) {

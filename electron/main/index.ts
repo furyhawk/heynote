@@ -6,7 +6,7 @@ import fs from "fs"
 import { 
     WINDOW_CLOSE_EVENT, WINDOW_FULLSCREEN_STATE, WINDOW_FOCUS_STATE, SETTINGS_CHANGE_EVENT,
     TITLE_BAR_BG_LIGHT, TITLE_BAR_BG_LIGHT_BLURRED, TITLE_BAR_BG_DARK, TITLE_BAR_BG_DARK_BLURRED,
-    SCRATCH_FILE_NAME, SAVE_TABS_STATE, LOAD_TABS_STATE, CONTEXT_MENU_CLOSED,
+    SCRATCH_FILE_NAME, SAVE_TABS_STATE, LOAD_TABS_STATE, CONTEXT_MENU_CLOSED, GET_SYSTEM_LOCALE,
 } from '@/src/common/constants'
 
 import { menu, getTrayMenu, getEditorContextMenu, getTabContextMenu, getSpellcheckingContextMenu } from './menu'
@@ -21,6 +21,7 @@ import {
     migrateBufferFileToLibrary, 
     NOTES_DIR_NAME 
 } from './file-library';
+import { registerProtocol, registerProtocolBeforeAppReady } from "./protocol.js"
 
 
 // The built directory structure
@@ -401,6 +402,9 @@ function registerAlwaysOnTop() {
     }
 }
 
+// register heynote-file:// protocol
+registerProtocolBeforeAppReady()
+
 app.whenReady().then(createWindow).then(async () => {
     initFileLibrary(win).then(() => {
         setupFileLibraryEventHandlers()
@@ -512,6 +516,11 @@ async function initFileLibrary(win) {
         initErrors.push(`Error: ${error.message}`)
     }
     setCurrentFileLibrary(fileLibrary)
+
+    // set up handlers for heynote-file:// protocol
+    if (fileLibrary) {
+        registerProtocol(fileLibrary)
+    }
 }
 
 ipcMain.handle("getInitErrors", () => {
@@ -545,8 +554,8 @@ ipcMain.handle('settings:set', async (event, settings) => {
         console.log("bufferPath changed, closing existing file library")
         fileLibrary.close()
         console.log("initializing new file library")
-        initFileLibrary(win)
-        await win.webContents.send("library:pathChanged")
+        await initFileLibrary(win)
+        win.webContents.send("library:pathChanged")
     }
 })
 
@@ -556,4 +565,8 @@ ipcMain.handle(SAVE_TABS_STATE, async (event, tabsState) => {
 
 ipcMain.handle(LOAD_TABS_STATE, async (event) => {
     return CONFIG.get("openTabsState")
+})
+
+ipcMain.handle(GET_SYSTEM_LOCALE, async (event) => {
+    return app.getSystemLocale()
 })

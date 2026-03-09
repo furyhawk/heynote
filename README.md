@@ -21,12 +21,13 @@ Available for Mac, Windows, and Linux.
 
 -   Persistent text buffer(s)
 -   Block-based
+-   Inline images
 -   Multiple buffers in tabs
 -   Math/Calculator mode
 -   Currency conversion
 -   Syntax highlighting:
 
-    C++, C#, Clojure, CSS, Elixir, Erlang, Dart, Go, Groovy, HTML, Java, JavaScript, JSX, Kotlin, TypeScript, TOML, TSX, JSON, Lezer, Markdown, PHP, Python, Ruby, Rust, Scala, Shell, SQL, Swift, Vue, XML, YAML
+    C++, C#, Clojure, CSS, Elixir, Erlang, Dart, Go, Groovy, HTML, Java, JavaScript, JSX, Kotlin, TypeScript, TOML, TSX, JSON, Lezer, Markdown, Mermaid, PHP, Python, Ruby, Rust, Scala, Shell, SQL, Swift, Vue, XML, YAML
     
 -   Language auto-detection
 -   Auto-formatting

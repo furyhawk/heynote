@@ -2,8 +2,11 @@ import { codeFolding, foldGutter, unfoldEffect, foldEffect, foldedRanges } from 
 import { EditorView } from "@codemirror/view"
 
 import { FOLD_LABEL_LENGTH } from "@/src/common/constants.js"
+import { formatDate, formatFullDate } from "@/src/common/format-date.js"
 import { getNoteBlockFromPos, getNoteBlocksFromRangeSet, delimiterRegexWithoutNewline } from "./block/block.js"
-import { transactionsHasAnnotationsAny, ADD_NEW_BLOCK, LANGUAGE_CHANGE, transactionsHasHistoryEvent } from "./annotation.js"
+import { WIDGET_TAG_REGEX_NON_GLOBAL } from "./image/image-parsing.js"
+import { transactionsHasAnnotationsAny, ADD_NEW_BLOCK, LANGUAGE_CHANGE, UPDATE_CREATED, transactionsHasHistoryEvent } from "./annotation.js"
+import { useHeynoteStore } from "@/src/stores/heynote-store.js"
 
 
 // This extension fixes so that a folded region is automatically unfolded if any changes happen 
@@ -26,7 +29,7 @@ const autoUnfoldOnEdit = () => {
         }
         
         // we don't want to unfold a block/range if the user adds a new block, or changes language of the block
-        if (transactionsHasAnnotationsAny(update.transactions, [ADD_NEW_BLOCK, LANGUAGE_CHANGE])) {
+        if (transactionsHasAnnotationsAny(update.transactions, [ADD_NEW_BLOCK, LANGUAGE_CHANGE, UPDATE_CREATED])) {
             return
         }
         // an undo/redo action should never be able to get characters into a folded line but if we don't have 
@@ -85,12 +88,14 @@ const autoUnfoldOnEdit = () => {
 }
 
 export function foldGutterExtension() {
+    const heynoteStore = useHeynoteStore()
+
     return [
         foldGutter({
             domEventHandlers: {
                 click(view, line, event) {
                     // editor should not loose focus when clicking on the fold gutter
-                    view.docView.dom.focus()
+                    view.focus()
                 },
             },
         }),
@@ -120,6 +125,20 @@ export function foldGutterExtension() {
                         dom.appendChild(labelDom)
                     }
                     dom.appendChild(linesDom)
+
+                    // if this is a fold of a whole block add creation time element
+                    const block = getNoteBlockFromPos(state, from)
+                    if (block.content.from === firstLine.from && block.content.to === to) {
+                        if (block.created) {
+                            const date = new Date(Date.parse(block.created))
+                            const createdDom = document.createElement("span")
+                            createdDom.className = "created-time"
+                            createdDom.textContent = formatDate(date, heynoteStore.systemLocale)
+                            createdDom.title = "Created " + formatFullDate(date, heynoteStore.systemLocale)
+                            dom.appendChild(createdDom)
+                        }
+                    }
+
                     return dom
                 },
                 placeholderDOM: (view, onClick, prepared) => {
@@ -130,6 +149,30 @@ export function foldGutterExtension() {
         ),
         autoUnfoldOnEdit(),
     ]
+}
+
+
+/**
+ * Returns a range that is to be folded, when folding a block. If the block can't 
+ * be folded (e.i. it's a single line with few characters) it returns undefined
+ */
+function getFoldBlockRange(block, state) {
+    const firstLine = state.doc.lineAt(block.content.from)
+
+    let from
+    // if the fold cutoff point would end up in the middle of an image, we set the cutoff to be immediately after the image instead
+    const match = firstLine.text.match(WIDGET_TAG_REGEX_NON_GLOBAL)
+    if (match && match.index < FOLD_LABEL_LENGTH) {
+        from = firstLine.from + match.index + match[0].length
+    } else {
+        from = Math.min(firstLine.to, block.content.from + FOLD_LABEL_LENGTH)
+    }
+    const to = block.content.to
+    if (from < to) {
+        // skip empty ranges
+        return {from, to}
+    }
+    return undefined
 }
 
 
@@ -155,14 +198,10 @@ export const toggleBlockFold = (editor) => (view) => {
             unfoldEffects.push(...blockFolds.map(range => unfoldEffect.of(range)))
             numFolded++
         } else {
-            const lastLine = state.doc.lineAt(block.content.to)
-            // skip single-line blocks, since they are not folded
-            if (firstLine.from !== lastLine.from) {
-                const range = {from: Math.min(firstLine.to, block.content.from + FOLD_LABEL_LENGTH), to: block.content.to}
-                if (range.to > range.from) {
-                    foldEffects.push(foldEffect.of(range))
-                }
+            const range = getFoldBlockRange(block, state)
+            if (range) {
                 numUnfolded++
+                foldEffects.push(foldEffect.of(range))
             }
         }
     }
@@ -182,13 +221,9 @@ export const foldBlock = (editor) => (view) => {
     const blockRanges = []
 
     for (const block of getNoteBlocksFromRangeSet(state, state.selection.ranges)) {
-        const line = state.doc.lineAt(block.content.from)
-        // fold the block content, but only the first line
-        const from = Math.min(line.to, block.content.from + FOLD_LABEL_LENGTH)
-        const to = block.content.to
-        if (from < to) {
-            // skip empty ranges
-            blockRanges.push({from, to})
+        const range = getFoldBlockRange(block, state)
+        if (range) {
+            blockRanges.push(range)
         }
     }
     if (blockRanges.length > 0) {
@@ -217,4 +252,21 @@ export const unfoldBlock = (editor) => (view) => {
             effects: blockFolds.map(range => unfoldEffect.of(range)),
         })
     }
+}
+
+/**
+ * Given a block state, returns the folded range if the block is folded, otherwise null
+ */
+export function isBlockFolded(state, block) {
+    const folds = foldedRanges(state)
+    const firstLine = state.doc.lineAt(block.content.from)
+    let isFolded = false
+    folds.between(block.content.from, block.content.to, (from, to) => {
+        if (from <= firstLine.to && to === block.content.to) {
+
+            isFolded = true
+            return false
+        }
+    })
+    return isFolded
 }

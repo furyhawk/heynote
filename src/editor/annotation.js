@@ -1,4 +1,5 @@
 import { Annotation } from "@codemirror/state"
+import { foldEffect, unfoldEffect } from "@codemirror/language"
 
 export const heynoteEvent = Annotation.define()
 export const LANGUAGE_CHANGE = "heynote-change"
@@ -11,6 +12,8 @@ export const CURSOR_CHANGE = "heynote-cursor-change"
 export const APPEND_BLOCK = "heynote-append-block"
 export const SET_FONT = "heynote-set-font"
 export const SEARCH_SETTINGS_UPDATED = "heynote-search-settings-updates"
+export const UPDATE_CREATED = "heynote-update-created"
+export const IMAGE_RESIZE = "heynote-image-resize"
 
 
 // This function checks if any of the transactions has the given Heynote annotation
@@ -24,4 +27,8 @@ export function transactionsHasAnnotationsAny(transactions, annotations) {
 
 export function transactionsHasHistoryEvent(transactions) {
     return transactions.some(tr => tr.isUserEvent("undo") || tr.isUserEvent("redo"))
+}
+
+export function transactionHasFoldEffect(transaction) {
+    return transaction?.effects.some(e => e.is(foldEffect) || e.is(unfoldEffect))
 }

@@ -1,5 +1,12 @@
+import { app } from "electron"
 import Store from "electron-store"
 import { isMac } from "./detect-platform"
+
+// the process.type === "browser" check is needed because both the main and renderer process 
+// imports this file, and app is not available in the renderer process
+if (process.env.HEYNOTE_TEST_USER_DATA_DIR && process.type === "browser") {
+    app.setPath("userData", process.env.HEYNOTE_TEST_USER_DATA_DIR)
+}
 
 const isDev = !!process.env.VITE_DEV_SERVER_URL
 
@@ -56,6 +63,14 @@ const schema = {
             "defaultBlockLanguageAutoDetect": {type: "boolean"},
             "spellcheckEnabled": {type: "boolean", default:false},
             "showWhitespace": {type:"boolean", default:false},
+            "cursorBlinkRate": {type: "integer", default: 1000},
+            "drawSettings": {
+                type: "object",
+                properties: {
+                    color: {type: "string"},
+                    shadowEnabled: {type: "boolean"},
+                },
+            },
 
             // when default font settings are used, fontFamily and fontSize is not specified in the 
             // settings file, so that it's possible for us to change the default settings in the 
@@ -131,6 +146,7 @@ const defaults = {
         },
         spellcheckEnabled: false,
         showWhitespace: false,
+        cursorBlinkRate: 1000,
     },
     theme: "system",
 }

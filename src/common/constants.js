@@ -15,6 +15,7 @@ export const SELECT_ALL_EVENT = "select-all"
 export const SAVE_TABS_STATE = "save-tabs-state"
 export const LOAD_TABS_STATE = "load-tabs-state"
 export const CONTEXT_MENU_CLOSED = "context-menu-closed"
+export const GET_SYSTEM_LOCALE = "getSystemLocale"
 
 export const UPDATE_AVAILABLE_EVENT = "update-available"
 export const UPDATE_NOT_AVAILABLE_EVENT = "update-not-available"
@@ -32,3 +33,18 @@ export const TITLE_BAR_BG_LIGHT = "#f3f2f2"
 export const TITLE_BAR_BG_LIGHT_BLURRED = "#e7e7e7"
 export const TITLE_BAR_BG_DARK = "#1b1c1d"
 export const TITLE_BAR_BG_DARK_BLURRED = "#121313"
+
+export const IMAGE_MIME_TYPES = [
+    "image/png",
+    "image/jpeg",
+    "image/gif",
+    "image/webp",
+    "image/svg+xml",
+    "image/apng",
+    "image/avif",
+    "image/bmp",
+    "image/tiff",
+]
+
+export const IMAGE_REGEX = /<∞img;([^∞>]*)∞>/g
+export const IMAGE_REGEX_RIPGREP = "<∞img;([^∞>]*)∞>"

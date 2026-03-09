@@ -12,6 +12,7 @@ import {
     UPDATE_INSTALL_AND_RESTART,
     UPDATE_DOWNLOADED,
     UPDATE_CHECK_FOR_UPDATES,
+    GET_SYSTEM_LOCALE,
 } from "@/src/common/constants"
 import CONFIG from "../config"
 import getCurrencyData from "./currency"
@@ -103,6 +104,10 @@ contextBridge.exposeInMainWorld("heynote", {
             return await ipcRenderer.invoke("buffer:close", path)
         },
 
+        async saveImage(blob) {
+            return await ipcRenderer.invoke("library:saveImage", blob)
+        },
+
         _onChangeCallbacks: {},
         addOnChangeCallback(path, callback) {
             // register a callback to be called when the buffer content changes for a specific file
@@ -168,6 +173,10 @@ contextBridge.exposeInMainWorld("heynote", {
 
     setWindowTitle(title) {
         ipcRenderer.invoke("setWindowTitle", title)
+    },
+
+    async getSystemLocale() {
+        return await ipcRenderer.invoke(GET_SYSTEM_LOCALE)
     },
 })
 

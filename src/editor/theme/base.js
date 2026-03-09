@@ -2,6 +2,9 @@ import { EditorView } from '@codemirror/view';
 
 
 export const heynoteBase = EditorView.theme({
+    ".cm-line": {
+        padding: "0 6px",
+    },
     ".cm-panels": {
         fontSize: "12px",
     },
@@ -114,6 +117,7 @@ export const heynoteBase = EditorView.theme({
     },
     '.heynote-math-result .inner': {
         background: '#48b57e',
+        //background: '#4892b5',
         color: '#fff',
         padding: '0px 4px',
         borderRadius: '2px',
@@ -142,5 +146,10 @@ export const heynoteBase = EditorView.theme({
     ".cm-searchMatch-selected": {
         backgroundColor: "#ffaa20",
         outline: "1px solid #e46d00",
+    },
+
+    ".cm-foldPlaceholder .created-time": {
+        float: "right",
+        marginRight: "6px",
     },
 })

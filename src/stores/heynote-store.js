@@ -1,6 +1,7 @@
 import { toRaw, nextTick, watch } from 'vue';
 import { defineStore } from "pinia"
 import { NoteFormat } from "../common/note-format"
+import { toSafeBrowserLocale } from "../util/locale.js"
 import { useEditorCacheStore } from "./editor-cache"
 import { 
     SCRATCH_FILE_NAME, WINDOW_FULLSCREEN_STATE, WINDOW_FOCUS_STATE, 
@@ -22,6 +23,7 @@ export const useHeynoteStore = defineStore("heynote", {
         currentLanguageAuto: null,
         currentCursorLine: null,
         currentSelectionSize: null,
+        currentCreatedTime: null,
         libraryId: 0,
         createBufferParams: {
             mode: "new",
@@ -34,9 +36,13 @@ export const useHeynoteStore = defineStore("heynote", {
         showEditBuffer: false,
         showMoveToBufferSelector: false,
         showCommandPalette: false,
+        showDrawImageModal: false,
+        drawImageUrl: null,
+        drawImageId: null,
 
         isFullscreen: false,
         isFocused: true,
+        systemLocale: navigator.language,
     }),
 
     actions: {
@@ -196,6 +202,17 @@ export const useHeynoteStore = defineStore("heynote", {
             }
             this.showCreateBuffer = true
         },
+        openDrawImageModal(imageUrl, imageId) {
+            this.closeDialog()
+            this.drawImageUrl = imageUrl
+            this.drawImageId = imageId
+            this.showDrawImageModal = true
+        },
+        closeDrawImageModal() {
+            this.showDrawImageModal = false
+            this.drawImageUrl = null
+            this.drawImageId = null
+        },
         closeDialog() {
             this.showCreateBuffer = false
             this.showBufferSelector = false
@@ -203,6 +220,9 @@ export const useHeynoteStore = defineStore("heynote", {
             this.showEditBuffer = false
             this.showMoveToBufferSelector = false
             this.showCommandPalette = false
+            this.showDrawImageModal = false
+            this.drawImageUrl = null
+            this.drawImageId = null
         },
 
         closeBufferSelector() {
@@ -377,4 +397,6 @@ export async function initHeynoteStore() {
 
     watch(() => heynoteStore.currentBufferPath, () => heynoteStore.saveTabsState())
     watch(() => heynoteStore.openTabs, () => heynoteStore.saveTabsState())
+
+    heynoteStore.systemLocale = toSafeBrowserLocale(await window.heynote.getSystemLocale())
 }

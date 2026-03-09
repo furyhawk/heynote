@@ -2,11 +2,13 @@
     import { mapState } from 'pinia'
     import UpdateStatusItem from './UpdateStatusItem.vue'
     import { LANGUAGES } from '../editor/languages.js'
+    import { formatDate, formatFullDate } from '../common/format-date'
     import { useHeynoteStore } from "../stores/heynote-store"
     import { useSettingsStore } from "../stores/settings-store"
     
     const LANGUAGE_MAP = Object.fromEntries(LANGUAGES.map(l => [l.token, l]))
     const LANGUAGE_NAMES = Object.fromEntries(LANGUAGES.map(l => [l.token, l.name]))
+
 
     export default {
         props: [
@@ -36,6 +38,8 @@
                 "currentSelectionSize", 
                 "currentLanguage",
                 "currentLanguageAuto",
+                "currentCreatedTime",
+                "systemLocale",
             ]),
             ...mapState(useSettingsStore, [
                 "spellcheckEnabled",
@@ -68,7 +72,21 @@
             updatesEnabled() {
                 return !!window.heynote.autoUpdate
             },
+
+        formattedCreatedTime() {
+            if (!this.currentCreatedTime) {
+                return null
+            }
+            return formatDate(this.currentCreatedTime, this.systemLocale)
         },
+
+        createdTimeTitle() {
+            if (!this.currentCreatedTime) {
+                return null
+            }
+            return "Block created " +  formatFullDate(this.currentCreatedTime, this.systemLocale)
+        },
+    },
 
         methods: {
             onSpellcheckingContextMenu(event) {
@@ -92,6 +110,12 @@
             <template v-if="currentSelectionSize > 0">
                 Sel <span class="num">{{ currentSelectionSize }}</span>
             </template>
+        </div>
+        <div 
+            :title="createdTimeTitle"
+            class="status-block created-time"
+        >
+            {{ formattedCreatedTime }}
         </div>
         <div class="spacer"></div>
         <div 

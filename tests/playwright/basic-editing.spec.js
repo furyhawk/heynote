@@ -1,0 +1,74 @@
+import { test, expect } from "@playwright/test";
+import { HeynotePage } from "./test-utils.js";
+
+let heynotePage
+
+test.beforeEach(async ({ page }) => {
+    heynotePage = new HeynotePage(page)
+    await heynotePage.goto()
+});
+
+test("enter text and create new block", async ({ page }) => {
+    expect((await heynotePage.getBlocks()).length).toBe(1)
+    await page.locator("body").pressSequentially("Hello World!")
+    await page.locator("body").press("Enter")
+    await page.locator("body").press(heynotePage.isMac ? "Meta+Enter" : "Control+Enter")
+    await page.waitForTimeout(100);
+    expect((await heynotePage.getBlocks()).length).toBe(2)
+    expect(await heynotePage.getBlockContent(0)).toBe("Hello World!\n")
+    expect(await heynotePage.getBlockContent(1)).toBe("")
+
+    // check that visual block layers are created
+    await expect(page.locator("css=.heynote-blocks-layer > div")).toHaveCount(2)
+})
+
+test("backspace", async ({ page }) => {
+
+    await page.locator("body").pressSequentially("Hello World!")
+    for (let i=0; i<5; i++) {
+        await page.locator("body").press("Backspace")
+    }
+    expect(await heynotePage.getBlockContent(0)).toBe("Hello W")
+})
+
+test("first block is protected", async ({ page }) => {
+    const initialContent = await heynotePage.getContent()
+    await page.locator("body").press("Backspace")
+    expect(await heynotePage.getBlockContent(0)).toBe("")
+    expect(await heynotePage.getContent()).toBe(initialContent)
+})
+
+test("insert current date and time", async ({ page }) => {
+    const expectedYear = new Date().toLocaleString(undefined, {
+        year: 'numeric',
+    })
+    await page.locator("body").press("Alt+Shift+D")
+    await expect.poll(async () => await heynotePage.getBlockContent(0)).toContain(expectedYear)
+    expect((await heynotePage.getBlockContent(0)).length).toBeGreaterThan(0)
+})
+
+test("press tab", async ({ page }) => {
+
+    await page.locator("body").pressSequentially("H")
+    await page.locator("body").press("Tab")
+    await page.locator("body").pressSequentially("ello")
+    await page.locator("body").press("Enter")
+    await page.locator("body").press("Tab")
+    expect(await heynotePage.getBlockContent(0)).toBe("H   ello\n    ")
+})
+
+test("indentation is preserved on enter in plain text block", async ({ page }) => {
+    await page.locator("body").pressSequentially("    Indented line")
+    await page.locator("body").press("Enter")
+    await page.locator("body").pressSequentially("Next line")
+    expect(await heynotePage.getBlockContent(0)).toBe("    Indented line\n    Next line")
+})
+
+test("python indentation increases after colon on enter", async ({ page }) => {
+    await heynotePage.setContent(`
+∞∞∞python
+def func():`)
+    await heynotePage.setCursorPosition((await heynotePage.getContent()).length)
+    await page.locator("body").press("Enter")
+    expect(await heynotePage.getBlockContent(0)).toBe("def func():\n    ")
+})

@@ -4,6 +4,9 @@
 {
   "appId": "com.heynote.app",
   "asar": true,
+  "asarUnpack": [
+    "**/node_modules/@vscode/ripgrep/bin/**"
+  ],
   //"icon": "public/favicon.ico",
   "directories": {
     "output": "release/${version}",
@@ -27,6 +30,8 @@
     ],
     "publish": ["github"],
     "category": "public.app-category.productivity",
+    "singleArchFiles": "**/node_modules/@vscode/ripgrep/bin/**",
+    "x64ArchFiles": "**/node_modules/@vscode/ripgrep/bin/rg",
   },
   "win": {
     "target": [
