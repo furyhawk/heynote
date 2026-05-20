@@ -2,6 +2,7 @@
     import { toRaw} from 'vue';
     import { mapStores, mapState } from 'pinia'
     import { useSettingsStore } from "@/src/stores/settings-store.js"
+    import { useHeynoteStore } from "@/src/stores/heynote-store"
 
     import { LANGUAGES } from '../../editor/languages.js'
     import KeyboardHotkey from "./KeyboardHotkey.vue"
@@ -38,21 +39,27 @@
                 keyBindings: this.initialSettings.keyBindings || [],
                 metaKey: this.initialSettings.emacsMetaKey,
                 isMac: window.heynote.platform.isMac,
+                isLinux: window.heynote.platform.isLinux,
                 showLineNumberGutter: this.initialSettings.showLineNumberGutter,
                 showFoldGutter: this.initialSettings.showFoldGutter,
                 showWhitespace: this.initialSettings.showWhitespace,
+                colorPreviewEnabled: this.initialSettings.colorPreviewEnabled ?? true,
                 showTabs: this.initialSettings.showTabs,
                 showTabsInFullscreen: this.initialSettings.showTabsInFullscreen,
+                showLeftPanel: this.initialSettings.showLeftPanel ?? true,
                 allowBetaVersions: this.initialSettings.allowBetaVersions,
                 enableGlobalHotkey: this.initialSettings.enableGlobalHotkey,
                 globalHotkey: this.initialSettings.globalHotkey,
                 showInDock: this.initialSettings.showInDock,
                 showInMenu: this.initialSettings.showInMenu,
                 alwaysOnTop: this.initialSettings.alwaysOnTop,
+                openAtLogin: this.initialSettings.openAtLogin,
+                startHidden: this.initialSettings.startHidden ?? false,
                 bracketClosing: this.initialSettings.bracketClosing,
                 indentType: this.initialSettings.indentType || "space",
                 tabSize: this.initialSettings.tabSize || 4,
                 autoUpdate: this.initialSettings.autoUpdate,
+                autoInstallUpdates: this.initialSettings.autoInstallUpdates !== false,
                 bufferPath: this.initialSettings.bufferPath,
                 fontFamily: this.initialSettings.fontFamily || defaultFontFamily,
                 fontSize: this.initialSettings.fontSize || defaultFontSize,
@@ -103,7 +110,7 @@
         },
 
         computed: {
-            ...mapStores(useSettingsStore),
+            ...mapStores(useSettingsStore, useHeynoteStore),
         },
 
         methods: {
@@ -114,12 +121,17 @@
             },
 
             updateSettings() {
+                if (this.heynoteStore.showLeftPanel !== this.showLeftPanel) {
+                    this.heynoteStore.setLeftPanelVisible(this.showLeftPanel, false)
+                }
                 this.settingsStore.updateSettings({
                     showLineNumberGutter: this.showLineNumberGutter,
                     showFoldGutter: this.showFoldGutter,
                     showWhitespace: this.showWhitespace,
+                    colorPreviewEnabled: this.colorPreviewEnabled,
                     showTabs: this.showTabs,
                     showTabsInFullscreen: this.showTabsInFullscreen,
+                    showLeftPanel: this.showLeftPanel,
                     keymap: this.keymap,
                     keyBindings: this.keyBindings.map((kb) => toRaw(kb)),
                     emacsMetaKey: window.heynote.platform.isMac ? this.metaKey : "alt",
@@ -129,7 +141,10 @@
                     showInDock: this.showInDock,
                     showInMenu: this.showInMenu || !this.showInDock,
                     alwaysOnTop: this.alwaysOnTop,
+                    openAtLogin: this.openAtLogin,
+                    startHidden: this.startHidden,
                     autoUpdate: this.autoUpdate,
+                    autoInstallUpdates: this.autoInstallUpdates,
                     bracketClosing: this.bracketClosing,
                     indentType: this.indentType,
                     tabSize: this.tabSize,
@@ -259,6 +274,22 @@
                                     />
                                     Always on top
                                 </label>
+                                <label v-if="!isLinux">
+                                    <input
+                                        type="checkbox"
+                                        v-model="openAtLogin"
+                                        @change="updateSettings"
+                                    />
+                                    Launch at login
+                                </label>
+                                <label>
+                                    <input
+                                        type="checkbox"
+                                        v-model="startHidden"
+                                        @change="updateSettings"
+                                    />
+                                    Start hidden
+                                </label>
                             </div>
                         </div>
                         <div class="row" v-if="!isWebApp">
@@ -351,7 +382,7 @@
                         </div>
                         <div class="row">
                             <div class="entry">
-                                <h2>Gutters & Whitespace</h2>
+                                <h2>Editor Display</h2>
                                 <label>
                                     <input 
                                         type="checkbox" 
@@ -377,6 +408,15 @@
                                         @change="updateSettings"
                                     />
                                     Show white-space
+                                </label>
+
+                                <label>
+                                    <input
+                                        type="checkbox"
+                                        v-model="colorPreviewEnabled"
+                                        @change="updateSettings"
+                                    />
+                                    Show color previews (CSS, HTML, JavaScript, TypeScript, Vue, TSX)
                                 </label>
                             </div>
                         </div>
@@ -441,6 +481,19 @@
                                 </label>
                             </div>
                         </div>
+                        <div class="row">
+                            <div class="entry">
+                                <h2>Sidebar</h2>
+                                <label>
+                                    <input
+                                        type="checkbox"
+                                        v-model="showLeftPanel"
+                                        @change="updateSettings"
+                                    />
+                                    Show sidebar
+                                </label>
+                            </div>
+                        </div>
                     </TabContent>
 
                     <TabContent tab="keyboard-bindings" :activeTab="activeTab">
@@ -486,6 +539,14 @@
                                         @change="updateSettings"
                                     />
                                     Periodically check for new updates
+                                </label>
+                                <label>
+                                    <input 
+                                        type="checkbox" 
+                                        v-model="autoInstallUpdates" 
+                                        @change="updateSettings"
+                                    />
+                                    Automatically install new updates
                                 </label>
                             </div>
                         </div>

@@ -11,6 +11,7 @@ import {
     insertNewlineAndIndent,
     toggleComment, toggleBlockComment, toggleLineComment,
     insertTab,
+    copyLineDown, copyLineUp,
 } from "@codemirror/commands"
 import { foldCode, unfoldCode, toggleFold } from "@codemirror/language"
 import { 
@@ -103,24 +104,49 @@ export function toggleAlwaysOnTop(editor) {
     }
 }
 
+export function toggleLeftPanel(editor) {
+    return (view) => {
+        useHeynoteStore().toggleLeftPanel()
+        return true
+    }
+}
+
+export function openBufferExplorer(editor) {
+    return (view) => {
+        useHeynoteStore().openBufferExplorer()
+        return true
+    }
+}
+
+export function openLibrarySearch(editor) {
+    return (view) => {
+        useHeynoteStore().openLibrarySearch()
+        return true
+    }
+}
+
 const nothing = (view) => {
     return true
 }
 
-const cmd = (f, category, description) => ({
+const cmd = (f, category, description, options={}) => ({
     run: f,
     name: f.name,
     description: description,
     category: category,
+    global: options.global || false,
 })
 
-const cmdLessContext = (f, category, description) => ({
+const cmdLessContext = (f, category, description, options={}) => ({
     run: (editor) => f,
     name: f.name,
     description: description,
     category: category,
+    global: options.global || false,
 })
 
+// if global is set, the command will work when the editor doesn't have focus (e.g. in the search panel)
+const global = {global: true}
 
 const HEYNOTE_COMMANDS = {
     addNewBlockAfterCurrent: cmd(addNewBlockAfterCurrent, "Block", "Add new block after current block"),
@@ -138,35 +164,38 @@ const HEYNOTE_COMMANDS = {
     toggleSelectionMarkMode: cmd(toggleSelectionMarkMode, "Cursor", "Toggle selection mark mode"),
     selectionMarkModeCancel: cmd(selectionMarkModeCancel, "Cursor", "Cancel selection mark mode"),
     openLanguageSelector: cmd(openLanguageSelector, "Block", "Select block language…"),
-    openBufferSelector: cmd(openBufferSelector, "Buffer", "Switch buffer…"),
-    openCommandPalette: cmd(openCommandPalette, "Editor", "Open command palette…"),
+    openBufferSelector: cmd(openBufferSelector, "Buffer", "Switch buffer…", global),
+    openCommandPalette: cmd(openCommandPalette, "Editor", "Open command palette…", global),
     openMoveToBuffer: cmd(openMoveToBuffer, "Block", "Move block to another buffer…"),
-    openCreateNewBuffer: cmd(openCreateNewBuffer, "Buffer", "Create new buffer…"),
+    openCreateNewBuffer: cmd(openCreateNewBuffer, "Buffer", "Create new buffer…", global),
     cut: cmd(cutCommand, "Clipboard", "Cut selection"),
     copy: cmd(copyCommand, "Clipboard", "Copy selection"),
     foldBlock: cmd(foldBlock, "Block", "Fold block"),
     unfoldBlock: cmd(unfoldBlock, "Block", "Unfold block"),
     toggleBlockFold: cmd(toggleBlockFold, "Block", "Toggle block fold"),
+    toggleLeftPanel: cmd(toggleLeftPanel, "Editor", "Toggle left sidebar panel", global),
+    openBufferExplorer: cmd(openBufferExplorer, "Buffer", "Open buffer explorer", global),
+    openLibrarySearch: cmd(openLibrarySearch, "Search", "Open library search", global),
 
     // tab commands
-    closeCurrentTab: cmd(closeCurrentTab, "Buffer", "Close current tab"),
-    reopenLastClosedTab: cmd(reopenLastClosedTab, "Buffer", "Reopen last closed tab"),
-    switchToLastTab: cmd(switchToLastTab, "Buffer", "Switch to last tab"),
-    previousTab: cmd(previousTab, "Buffer", "Switch to previous tab"),
-    nextTab: cmd(nextTab, "Buffer", "Switch to next tab"),
+    closeCurrentTab: cmd(closeCurrentTab, "Buffer", "Close current tab", global),
+    reopenLastClosedTab: cmd(reopenLastClosedTab, "Buffer", "Reopen last closed tab", global),
+    switchToLastTab: cmd(switchToLastTab, "Buffer", "Switch to last tab", global),
+    previousTab: cmd(previousTab, "Buffer", "Switch to previous tab", global),
+    nextTab: cmd(nextTab, "Buffer", "Switch to next tab", global),
     ...Object.fromEntries(Array.from({ length: 9 }, (_, i) => [
         "switchToTab" + (i+1), 
         cmdLessContext(() => {
             useHeynoteStore().switchToTabIndex(i)
             return true
-        }, "Buffer", `Switch to tab ${i+1}`),
+        }, "Buffer", `Switch to tab ${i+1}`, global),
     ])),
 
     // spellcheck
     toggleSpellcheck: cmd(toggleSpellcheck, "Spellchecker", "Toggle Spellchecking"),
     enableSpellcheck: cmd(enableSpellcheck, "Spellchecker", "Enable Spellchecking"),
     disableSpellcheck: cmd(disableSpellcheck, "Spellchecker", "Disable Spellchecking"),
-    toggleAlwaysOnTop: cmd(toggleAlwaysOnTop, "Window", "Toggle Always on top"),
+    toggleAlwaysOnTop: cmd(toggleAlwaysOnTop, "Window", "Toggle Always on top", global),
 
     // commands without editor context
     paste: cmdLessContext(pasteCommand, "Clipboard", "Paste from clipboard"),
@@ -183,7 +212,7 @@ const HEYNOTE_COMMANDS = {
     selectNextParagraph: cmdLessContext(selectNextParagraph, "Selection", "Select to next paragraph"),
     selectPreviousBlock: cmdLessContext(selectPreviousBlock, "Selection", "Select to previous block"),
     selectNextBlock: cmdLessContext(selectNextBlock, "Selection", "Select to next block"),
-    nothing: cmdLessContext(nothing, "Misc", "Do nothing"),
+    nothing: cmdLessContext(nothing, "Misc", "Do nothing", global),
     insertDateAndTime: cmdLessContext(insertDateAndTime, "Misc", "Insert date and time"),
     insertIndentation: cmdLessContext(insertIndentation, "Edit", "Insert indentation"),
 
@@ -222,6 +251,8 @@ const HEYNOTE_COMMANDS = {
     toggleBlockComment: cmdLessContext(toggleBlockComment, "Edit", "Toggle block comment"),
     toggleLineComment: cmdLessContext(toggleLineComment, "Edit", "Toggle line comment"),
     insertTab: cmdLessContext(insertTab, "Edit", "Insert tab"),
+    copyLineDown: cmdLessContext(copyLineDown, "Edit", "Copy line(s) down"),
+    copyLineUp: cmdLessContext(copyLineUp, "Edit", "Copy line(s) up"),
 }
 
 // selection mark-mode:ify all cursor/select commands from CodeMirror

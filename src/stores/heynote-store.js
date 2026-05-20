@@ -1,11 +1,14 @@
-import { toRaw, nextTick, watch } from 'vue';
+import { toRaw, watch } from 'vue';
 import { defineStore } from "pinia"
 import { NoteFormat } from "../common/note-format"
 import { toSafeBrowserLocale } from "../util/locale.js"
+import { getInitialContent, getPlatformIdFromHeynotePlatform } from "../common/initial-content.js"
 import { useEditorCacheStore } from "./editor-cache"
+import { useSettingsStore } from "./settings-store"
 import { 
     SCRATCH_FILE_NAME, WINDOW_FULLSCREEN_STATE, WINDOW_FOCUS_STATE, 
-    SAVE_TABS_STATE, LOAD_TABS_STATE, CONTEXT_MENU_CLOSED 
+    SAVE_TABS_STATE, LOAD_TABS_STATE, CONTEXT_MENU_CLOSED,
+    DEFAULT_LEFT_PANEL_WIDTH, FOCUS_EDITOR_EVENT,
 } from "../common/constants"
 
 
@@ -18,6 +21,8 @@ export const useHeynoteStore = defineStore("heynote", {
 
         currentEditor: null,
         currentBufferPath: null,
+        // One-shot focus request consumed by Editor.vue when a buffer load actually happens.
+        focusEditorOnBufferOpen: true,
         currentBufferName: null,
         currentLanguage: null,
         currentLanguageAuto: null,
@@ -27,7 +32,8 @@ export const useHeynoteStore = defineStore("heynote", {
         libraryId: 0,
         createBufferParams: {
             mode: "new",
-            nameSuggestion: ""
+            nameSuggestion: "",
+            parentPath: "",
         },
 
         showBufferSelector: false,
@@ -40,6 +46,13 @@ export const useHeynoteStore = defineStore("heynote", {
         drawImageUrl: null,
         drawImageId: null,
 
+        showLeftPanel: window.heynote.settings.showLeftPanel ?? true,
+        leftPanelWidth: window.heynote.settings.leftPanelWidth ?? DEFAULT_LEFT_PANEL_WIDTH,
+        currentLeftPanel: "buffer-tree",
+        hideLeftPanelOnLibrarySearchEscape: false,
+        librarySearchFocusRequestId: 0,
+        bufferTreeFocusRequestId: 0,
+        focusBufferTreeOnMount: false,
         isFullscreen: false,
         isFocused: true,
         systemLocale: navigator.language,
@@ -61,8 +74,75 @@ export const useHeynoteStore = defineStore("heynote", {
             this.currentEditor.focus()
         },
 
-        openBuffer(path) {
+        setLeftPanelVisible(visible, persist = true) {
+            this.showLeftPanel = visible
+            if (persist) {
+                useSettingsStore().updateSettings({
+                    showLeftPanel: this.showLeftPanel,
+                })
+            }
+        },
+
+        toggleLeftPanel() {
+            this.setLeftPanelVisible(!this.showLeftPanel, true)
+        },
+
+        openBufferExplorer() {
+            if (document.activeElement?.closest?.(".buffer-tree")) {
+                this.focusEditor()
+                return
+            }
             this.closeDialog()
+            this.focusBufferTreeOnMount = true
+            this.setLeftPanelVisible(true, true)
+            this.currentLeftPanel = "buffer-tree"
+            this.bufferTreeFocusRequestId++
+        },
+
+        openLibrarySearch() {
+            const wasLeftPanelVisible = this.showLeftPanel
+            this.closeDialog()
+            this.hideLeftPanelOnLibrarySearchEscape = !wasLeftPanelVisible
+            this.setLeftPanelVisible(true, true)
+            this.currentLeftPanel = "search"
+            this.librarySearchFocusRequestId++
+        },
+
+        closeLibrarySearchFromEscape() {
+            if (this.hideLeftPanelOnLibrarySearchEscape) {
+                this.hideLeftPanelOnLibrarySearchEscape = false
+                this.setLeftPanelVisible(false, true)
+            } else {
+                this.currentLeftPanel = "buffer-tree"
+            }
+            this.focusEditor()
+        },
+
+        consumeFocusBufferTreeOnMount() {
+            const focusBufferTree = this.focusBufferTreeOnMount
+            this.focusBufferTreeOnMount = false
+            return focusBufferTree
+        },
+
+        consumeFocusEditorOnBufferOpen() {
+            const focusEditor = this.focusEditorOnBufferOpen
+            this.focusEditorOnBufferOpen = true
+            return focusEditor
+        },
+
+        openBuffer(path, options = {}) {
+            this.closeDialog()
+            const focusEditor = options.focusEditor !== false
+
+            // Same-buffer opens do not trigger Editor.vue to consume this flag.
+            if (path === this.currentBufferPath) {
+                this.focusEditorOnBufferOpen = true
+                if (focusEditor) {
+                    this.focusEditor()
+                }
+            } else {
+                this.focusEditorOnBufferOpen = focusEditor
+            }
             this.currentBufferPath = path
             this.addRecentBuffer(path)
 
@@ -193,14 +273,21 @@ export const useHeynoteStore = defineStore("heynote", {
             this.closeDialog()
             this.showMoveToBufferSelector = true
         },
-        openCreateBuffer(createMode, nameSuggestion) {
+        openCreateBuffer(createMode, nameSuggestion, parentPath) {
             createMode = createMode || "new"
             this.closeDialog()
             this.createBufferParams = {
                 mode: createMode || "new",
-                name: nameSuggestion || ""
+                name: nameSuggestion || "",
+                parentPath: parentPath || "",
             }
             this.showCreateBuffer = true
+        },
+        openArchiveScratchDialog() {
+            // get date formatted as YYYY-MM-DD
+            const now = new Date()
+            const archiveDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`
+            this.openCreateBuffer("archiveScratch", `Archived Scratch (${archiveDate})`, "")
         },
         openDrawImageModal(imageUrl, imageId) {
             this.closeDialog()
@@ -267,6 +354,51 @@ export const useHeynoteStore = defineStore("heynote", {
             await toRaw(this.currentEditor).createNewBuffer(path, name)
         },
 
+        async archiveScratchBuffer(path, name) {
+            if (!path || path === SCRATCH_FILE_NAME) {
+                throw new Error(`Invalid archive path: ${path}`)
+            }
+            if (this.buffers[path]) {
+                throw new Error(`Note already exists: ${path}`)
+            }
+
+            const archiveDirectory = path.split(window.heynote.buffer.pathSeparator).slice(0, -1).join(window.heynote.buffer.pathSeparator)
+            if (archiveDirectory) {
+                await window.heynote.buffer.createDirectory(archiveDirectory)
+            }
+
+            const editorCacheStore = useEditorCacheStore()
+            const scratchEditor = toRaw(editorCacheStore.cache[SCRATCH_FILE_NAME])
+
+            let archivedNote
+            if (scratchEditor) {
+                await scratchEditor.contentLoadedPromise
+                await scratchEditor.save()
+                archivedNote = NoteFormat.load(scratchEditor.getContent())
+            } else {
+                archivedNote = NoteFormat.load(await window.heynote.buffer.load(SCRATCH_FILE_NAME))
+            }
+            archivedNote.metadata.name = name
+            await window.heynote.buffer.create(path, archivedNote.serialize())
+
+            const initialScratchContent = getInitialContent(
+                getPlatformIdFromHeynotePlatform(window.heynote.platform),
+                window.heynote.isDev,
+            )
+
+            await window.heynote.buffer.save(SCRATCH_FILE_NAME, initialScratchContent)
+
+            if (scratchEditor) {
+                editorCacheStore.freeEditor(SCRATCH_FILE_NAME, false)
+                if (this.currentBufferPath === SCRATCH_FILE_NAME) {
+                    this.currentEditor = null
+                    this.libraryId++
+                }
+            }
+
+            await this.updateBuffers()
+        },
+
         /**
          * Create a new note file at path, with name `name`, and content content
          * @param {*} path: File path relative to Heynote root 
@@ -296,12 +428,49 @@ export const useHeynoteStore = defineStore("heynote", {
             toRaw(this.currentEditor).setName(name)
             await (toRaw(this.currentEditor)).save()
             if (newPath && path !== newPath) {
-                //console.log("moving note", path, newPath)
+                await this.moveBuffer(path, newPath)
+                return
+            }
+            await this.updateBuffers()
+        },
+
+        async moveBuffer(path, newPath) {
+            if (!newPath || path === newPath) {
+                return
+            }
+            if (this.buffers[newPath]) {
+                throw new Error(`Note already exists: ${newPath}`)
+            }
+
+            const editorCacheStore = useEditorCacheStore()
+            const sourceEditor = toRaw(editorCacheStore.cache[path])
+
+            // Flush unsaved in-memory state before the underlying file move.
+            if (sourceEditor) {
+                await sourceEditor.save()
+            }
+
+            const wasCurrentBuffer = this.currentBufferPath === path
+            const replacePath = (entryPath) => entryPath === path ? newPath : entryPath
+
+            if (!wasCurrentBuffer) {
+                this.openTabs = this.openTabs.map(replacePath)
+                this.recentBufferPaths = this.recentBufferPaths.map(replacePath)
+                this.closedTabs = this.closedTabs.map((closedTab) => ({
+                    ...closedTab,
+                    path: replacePath(closedTab.path),
+                }))
+                editorCacheStore.freeEditor(path)
+            }
+
+            await window.heynote.buffer.move(path, newPath)
+
+            if (wasCurrentBuffer) {
                 this.closeTab(path)
-                await window.heynote.buffer.move(path, newPath)
                 this.openBuffer(newPath)
             }
-            this.updateBuffers()
+
+            await this.updateBuffers()
         },
 
         async deleteBuffer(path) {
@@ -329,6 +498,16 @@ export const useHeynoteStore = defineStore("heynote", {
             }
 
             await window.heynote.buffer.delete(path)
+            await this.updateBuffers()
+        },
+
+        async deleteDirectory(path) {
+            await window.heynote.buffer.deleteDirectory(path)
+            await this.updateBuffers()
+        },
+
+        async createDirectory(path) {
+            await window.heynote.buffer.createDirectory(path)
             await this.updateBuffers()
         },
 
@@ -388,6 +567,9 @@ export async function initHeynoteStore() {
     window.heynote.mainProcess.on(WINDOW_FOCUS_STATE, (event, state) => {
         heynoteStore.isFocused = state
     })
+    window.heynote.mainProcess.on(FOCUS_EDITOR_EVENT, () => {
+        requestAnimationFrame(() => heynoteStore.focusEditor())
+    })
     await heynoteStore.updateBuffers()
     heynoteStore.loadTabsState()
 
@@ -397,6 +579,11 @@ export async function initHeynoteStore() {
 
     watch(() => heynoteStore.currentBufferPath, () => heynoteStore.saveTabsState())
     watch(() => heynoteStore.openTabs, () => heynoteStore.saveTabsState())
+
+    watch(() => heynoteStore.leftPanelWidth, () => {
+        //console.log("updating --left-panel-width")
+        document.documentElement.style.setProperty("--left-panel-width", heynoteStore.leftPanelWidth + "px");
+    }, {immediate:true})
 
     heynoteStore.systemLocale = toSafeBrowserLocale(await window.heynote.getSystemLocale())
 }

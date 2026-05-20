@@ -65,7 +65,9 @@ export class FileLibrary {
         }
 
         // garbage collect stale images
-        this.removeUnreferencedImages()
+        this.removeUnreferencedImages().catch((err) => {
+            console.error(err)
+        })
     }
 
     async exists(path) {
@@ -96,6 +98,17 @@ export class FileLibrary {
         await this.jetpack.writeAsync(fullPath, content)
     }
 
+    async createDirectory(path) {
+        if (!path) {
+            throw new Error("Directory path is empty")
+        }
+        const fullPath = join(this.basePath, path)
+        if (this.jetpack.exists(fullPath) === "file") {
+            throw new Error(`A file already exists at path: ${path}`)
+        }
+        await this.jetpack.dirAsync(fullPath)
+    }
+
     async move(path, newPath) {
         if (await this.exists(newPath)) {
             throw new Error(`File already exists: ${newPath}`)
@@ -110,6 +123,32 @@ export class FileLibrary {
             throw new Error("Can't delete scratch file")
         }
         const fullPath = join(this.basePath, path)
+        await this.jetpack.removeAsync(fullPath)
+    }
+
+    async isDirectoryEmpty(path) {
+        if (!path) {
+            return false
+        }
+        const fullPath = join(this.basePath, path)
+        if (this.jetpack.exists(fullPath) !== "dir") {
+            return false
+        }
+        const entries = await fs.promises.readdir(fullPath)
+        return entries.length === 0
+    }
+
+    async deleteDirectory(path) {
+        if (!path) {
+            throw new Error("Can't delete root directory")
+        }
+        const fullPath = join(this.basePath, path)
+        if (this.jetpack.exists(fullPath) !== "dir") {
+            throw new Error(`Directory does not exist: ${path}`)
+        }
+        if (!(await this.isDirectoryEmpty(path))) {
+            throw new Error(`Directory is not empty: ${path}`)
+        }
         await this.jetpack.removeAsync(fullPath)
     }
 
@@ -240,6 +279,9 @@ export class FileLibrary {
         }
         
         const jp = jetpack.cwd(this.imagesBasePath)
+        if (!jetpack.exists(this.imagesBasePath)) {
+            return
+        }
         const files = await jp.findAsync("", {
             matching: "*",
             recursive: false,
@@ -344,6 +386,10 @@ export function setupFileLibraryEventHandlers() {
         return await library.create(path, content)
     });
 
+    ipcMain.handle('buffer:createDirectory', async (event, path) => {
+        return await library.createDirectory(path)
+    });
+
     ipcMain.handle('buffer:getList', async (event) => {
         return await library.getList()
     });
@@ -375,6 +421,14 @@ export function setupFileLibraryEventHandlers() {
 
     ipcMain.handle('buffer:delete', async (event, path) => {
         return await library.delete(path)
+    });
+
+    ipcMain.handle('buffer:isDirectoryEmpty', async (event, path) => {
+        return await library.isDirectoryEmpty(path)
+    });
+
+    ipcMain.handle('buffer:deleteDirectory', async (event, path) => {
+        return await library.deleteDirectory(path)
     });
 
     ipcMain.handle("library:selectLocation", async () => {

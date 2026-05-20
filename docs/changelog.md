@@ -2,6 +2,44 @@
 
 Here are the most notable changes in each release. For a more detailed list of changes, see the [Github Releases page](https://github.com/heyman/heynote/releases).
 
+## 2.9.0
+
+### Sidebar with tree view of the note buffers
+
+You can now turn on a sidebar with a tree view of all your buffers and directories.
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="https://heynote.com/img/dark/buffer-tree.png">
+  <img src="https://heynote.com/img/light/buffer-tree.png" width="400" alt="New sidebar buffer tree feature">
+</picture>
+
+
+### Search across all buffers
+
+A new global search function has been added. Use it to find text across all buffers in the library. The default 
+key binding to open up the global search is `Ctrl/Cmd + Shift + F`.
+
+
+### Archive Scratch functionality
+
+A new archive action has been added for the default Scratch buffer. It can be accessed from the Scratch buffer's 
+context (right click) menu. It moves the content of Scratch into a new buffer buffer and starts a fresh Scratch buffer.
+
+For performance reasons it's recommended to use this feature when the Scratch buffer grows really large (e.g. MBs).
+
+
+### Other changes
+
+- Persist the search query between different buffers, and between restarts
+- Add a setting for automatically installing new updates (on by default)
+- Add version and client id headers when fetching currency exchange rates
+- Add inline color preview for hex / hsl / rgb values for supported languages (CSS, HTML, JS/TS, Vue, TSX)
+- Improve window show/focus behavior when restoring from tray
+- Add setting for automatically starting Heynote on login
+- Add setting for starting Heynote hidden
+- Add copyLineDown and copyLineUp commands by default bound to `Alt + Shift + ArrowDown/Up`
+
+
 ## 2.8.2
 
 - Fix issue with broken images after changing the buffer files path

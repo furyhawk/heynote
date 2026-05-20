@@ -70,6 +70,7 @@
         background-repeat: no-repeat
         background-position-y: 5px
         background-position-x: calc(2px + var(--indent-level) * 16px)
+        user-select: none
         +dark-mode
             background-image: url('@/assets/icons/caret-right-white.svg')
             color: rgba(255,255,255, 0.87)

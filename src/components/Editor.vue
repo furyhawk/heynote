@@ -1,7 +1,7 @@
 <script>
     import { syntaxTree } from "@codemirror/language"
     import { toRaw } from 'vue';
-    import { mapState, mapWritableState, mapStores } from 'pinia'
+    import { mapActions, mapState, mapWritableState, mapStores } from 'pinia'
     import { useHeynoteStore } from "../stores/heynote-store.js"
     import { useEditorCacheStore } from "../stores/editor-cache"
     import { REDO_EVENT, WINDOW_CLOSE_EVENT, DELETE_BLOCK_EVENT, UNDO_EVENT, SELECT_ALL_EVENT } from '@/src/common/constants';
@@ -133,16 +133,26 @@
         },
 
         methods: {
+            ...mapActions(useHeynoteStore, [
+                "consumeFocusEditorOnBufferOpen",
+            ]),
+
             loadBuffer(path) {
                 //console.log("loadBuffer", path)
                 if (this.editor) {
                     this.editor.hide()
                 }
 
-                const [editor, created] = this.editorCacheStore.getOrCreateEditor(path)
+                const focusEditor = this.consumeFocusEditorOnBufferOpen()
+                const [editor, created] = this.editorCacheStore.getOrCreateEditor(path, {
+                    focus: focusEditor,
+                })
                 this.editor = editor
                 if (!created) {
                     toRaw(editor).show()
+                    if (focusEditor) {
+                        toRaw(editor).focus()
+                    }
                 }
 
                 this.currentEditor = toRaw(this.editor)

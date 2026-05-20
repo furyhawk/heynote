@@ -4,6 +4,10 @@
 
     const pathSep = window.heynote.buffer.pathSeparator
 
+    function hasHiddenDirectorySegment(path) {
+        return path.split(pathSep).some((segment) => segment.startsWith("."))
+    }
+
     export default {
         props: {
             directoryTree: Object,
@@ -26,7 +30,9 @@
         },
 
         mounted() {
-            this.selected = this.listItems.findIndex(item => item.path === this.selectedPath)
+            const selectedIdx = this.listItems.findIndex((item) => item.path === this.selectedPath || item.suggestedPath === this.selectedPath)
+            this.selected = selectedIdx === -1 ? 0 : selectedIdx
+            this.emitSelectedPath()
         },
 
         watch: {
@@ -35,7 +41,7 @@
             },
 
             selected() {
-                this.$emit("update:modelValue", this.listItems[this.selected].path)
+                this.emitSelectedPath()
             }
         },
 
@@ -43,6 +49,9 @@
             listItems() {
                 const items = []
                 const getListItems = (node, level) => {
+                    if (node.path && hasHiddenDirectorySegment(node.path)) {
+                        return
+                    }
                     items.push({
                         name: node.name, 
                         level: level,
@@ -57,6 +66,9 @@
                             level: level + 1,
                             type: "new-folder",
                             path: node.path,
+                            initialName: node.initialNewFolderName || "",
+                            suggestedPath: node.suggestedNewFolderPath || node.path,
+                            autoFocus: node.newFolderAutoFocus,
                         })
                     }
                     if (node.open && node.children) {
@@ -137,6 +149,9 @@
                 //console.log("Create new folder in", parentPath)
                 const node = this.getNode(parentPath)
                 node.createNewFolder = true
+                node.initialNewFolderName = ""
+                node.suggestedNewFolderPath = parentPath
+                node.newFolderAutoFocus = true
                 node.open = true
             },
 
@@ -144,6 +159,9 @@
                 //console.log("Create new folder", name, "in", parentPath)
                 const node = this.getNode(parentPath)
                 node.createNewFolder = false
+                node.initialNewFolderName = ""
+                node.suggestedNewFolderPath = parentPath
+                node.newFolderAutoFocus = true
                 node.children.unshift({
                     name: name,
                     path: parentPath === "" ? name : parentPath + pathSep + name,
@@ -158,6 +176,9 @@
                 //console.log("Cancel new folder in", path)
                 const node = this.getNode(path)
                 node.createNewFolder = false
+                node.initialNewFolderName = ""
+                node.suggestedNewFolderPath = path
+                node.newFolderAutoFocus = true
                 this.$refs.container.focus()
             },
 
@@ -171,6 +192,21 @@
                     this.selected--
                 }
                 this.$refs.container.focus()
+            },
+
+            updateSuggestedPath(path, suggestedPath) {
+                const node = this.getNode(path)
+                node.suggestedNewFolderPath = suggestedPath
+                if (this.listItems[this.selected]?.path === path && this.listItems[this.selected]?.type === "new-folder") {
+                    this.$emit("update:modelValue", suggestedPath || path)
+                }
+            },
+
+            emitSelectedPath() {
+                const item = this.listItems[this.selected]
+                if (item) {
+                    this.$emit("update:modelValue", item.suggestedPath || item.path)
+                }
             },
 
             getNode(path) {
@@ -227,8 +263,11 @@
                 v-else-if="item.type === 'new-folder'"
                 :parentPath="item.path"
                 :level="item.level"
+                :initialName="item.initialName"
+                :autoFocus="item.autoFocus !== false"
                 @cancel="() => cancelNewFolder(item.path)"
                 @create-folder="createNewFolder"
+                @update-suggested-path="(suggestedPath) => updateSuggestedPath(item.path, suggestedPath)"
             />
         </template>
     </button>

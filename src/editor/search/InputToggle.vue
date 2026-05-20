@@ -4,6 +4,7 @@
         props: {
             modelValue: Boolean,
             type: String,
+            disabled: Boolean,
         },
         emits: ["update:modelValue"],
 
@@ -16,6 +17,7 @@
                 return {
                     "input-toggle": true,
                     active: this.modelValue,
+                    disabled: this.disabled,
                     "block": this.type === "block",
                     "case-sensitive": this.type === "case-sensitive",
                     "whole-words": this.type === "whole-words",
@@ -53,6 +55,7 @@
     <button
         :class="className"
         :title="title"
+        :disabled="disabled"
         @click="toggle"
     >
         <slot></slot>
@@ -76,6 +79,11 @@
             background-color: rgba(0,0,0, 0.1)
             +dark-mode
                 background-color: rgba(255,255,255, 0.15)
+        &.disabled
+            cursor: default
+            opacity: 0.45
+            &:hover
+                background-color: transparent
         
         &.active
             background-color: #DFF1E9

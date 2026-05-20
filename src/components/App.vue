@@ -1,6 +1,7 @@
 <script>
     import { toRaw } from 'vue'
     import { mapState, mapActions } from 'pinia'
+    import { runScopeHandlers } from "@codemirror/view"
 
     import { mapWritableState, mapStores } from 'pinia'
     import { useHeynoteStore } from "../stores/heynote-store"
@@ -21,6 +22,7 @@
     import EditBuffer from './EditBuffer.vue'
     import TabBar from './tabs/TabBar.vue'
     import DrawImageModal from './draw/DrawImageModal.vue'
+    import LeftPanel from './LeftPanel.vue'
 
     export default {
         components: {
@@ -34,6 +36,7 @@
             EditBuffer,
             TabBar,
             DrawImageModal,
+            LeftPanel,
         },
 
         data() {
@@ -45,6 +48,7 @@
 
         mounted() {
             this.settingsStore.setUp()
+            window.addEventListener("keydown", this.onGlobalKeydown)
             
             window.heynote.mainProcess.on(OPEN_SETTINGS_EVENT, () => {
                 this.showSettings = true
@@ -63,8 +67,12 @@
                 this.heynoteStore.closeTab(tabPath)
             })
 
-            window.heynote.mainProcess.on('tab:openNew', () => {
-                this.openBufferSelector()
+            window.heynote.mainProcess.on('tab:openNew', (event, directory) => {
+                if (directory !== undefined) {
+                    this.openCreateBuffer("new", "", directory)
+                } else {
+                    this.openBufferSelector()
+                }
             })
 
             window.heynote.mainProcess.on('tab:createNew', () => {
@@ -81,9 +89,24 @@
                 }
                 this.focusEditor()
             })
+
+            window.heynote.mainProcess.on('tab:archiveScratch', () => {
+                this.heynoteStore.openArchiveScratchDialog()
+            })
+
+            window.heynote.mainProcess.on('bufferTree:deleteDirectory', async (event, directoryPath) => {
+                try {
+                    await this.deleteDirectory(directoryPath)
+                } catch (error) {
+                    console.error("Failed to delete directory:", directoryPath, error)
+                }
+                this.focusEditor()
+            })
+
         },
 
         beforeUnmount() {
+            window.removeEventListener("keydown", this.onGlobalKeydown)
             this.settingsStore.tearDown()
         },
 
@@ -120,6 +143,7 @@
                 "showDrawImageModal",
                 "drawImageUrl",
                 "drawImageId",
+                "showLeftPanel",
                 "isFullscreen",
             ]),
             ...mapState(useSettingsStore, [
@@ -155,6 +179,7 @@
                 "closeMoveToBufferSelector",
                 "closeDrawImageModal",
                 "deleteBuffer",
+                "deleteDirectory",
                 "focusEditor",
             ]),
 
@@ -182,6 +207,26 @@
                 this.focusEditor()
             },
 
+            onGlobalKeydown(event) {
+                if (this.showSettings || event.defaultPrevented) {
+                    return
+                }
+
+                const editor = toRaw(this.heynoteStore.currentEditor)
+                if (!editor?.view) {
+                    return
+                }
+
+                if (event.target instanceof Node && editor.view.contentDOM.contains(event.target)) {
+                    return
+                }
+
+                if (runScopeHandlers(editor.view, event, "global")) {
+                    event.preventDefault()
+                    event.stopPropagation()
+                }
+            },
+
             onSelectLanguage(language) {
                 this.closeDialog()
                 this.$refs.editor.setLanguage(language)
@@ -197,6 +242,11 @@
 
             toggleAlwaysOnTop() {
                 this.heynoteStore.executeCommand("toggleAlwaysOnTop")
+            },
+
+            toggleLeftPanel() {
+                this.heynoteStore.executeCommand("toggleLeftPanel")
+                this.focusEditor()
             },
 
             onMoveCurrentBlockToOtherEditor(path) {
@@ -235,20 +285,25 @@
 </script>
 
 <template>
-    <TabBar v-if="showTabBar" />
     <div 
         class="container" 
-        :class="{'tab-bar-visible':showTabBar}"
-    >
-        <Editor 
-            v-if="currentBufferPath"
-            :theme="settingsStore.theme"
-            :development="development"
-            :debugSyntaxTree="false"
-            :inert="editorInert"
-            class="editor"
-            ref="editor"
-        />
+        :class="{'tab-bar-visible':showTabBar, 'left-panel-visible': showLeftPanel}"
+    >   
+        <div class="main-container">
+            <LeftPanel v-if="showLeftPanel" />
+            <div class="editor-container">
+                <TabBar v-if="showTabBar" />
+                <Editor 
+                    v-if="currentBufferPath"
+                    :theme="settingsStore.theme"
+                    :development="development"
+                    :debugSyntaxTree="false"
+                    :inert="editorInert"
+                    class="editor"
+                    ref="editor"
+                />
+            </div>
+        </div>
         <StatusBar 
             :autoUpdate="settings.autoUpdate"
             :allowBetaVersions="settings.allowBetaVersions"
@@ -258,37 +313,37 @@
             @openSettings="showSettings = true"
             @toggleSpellcheck="toggleSpellcheck"
             @toggleAlwaysOnTop="toggleAlwaysOnTop"
+            @toggleLeftPanel="toggleLeftPanel"
             @click="() => {$refs.editor.focus()}"
             class="status" 
         />
         <div class="overlay">
-            <LanguageSelector 
-                v-if="showLanguageSelector" 
-                @selectLanguage="onSelectLanguage"
-                @close="closeDialog"
-            />
-            <BufferSelector 
-                v-if="showBufferSelector || showCommandPalette" 
-                :initialFilter="showCommandPalette ? '>' : ''"
-                :commandsEnabled="true"
-                @openBuffer="openBuffer"
-                @openCreateBuffer="(nameSuggestion) => openCreateBuffer('new', nameSuggestion)"
-                @close="closeBufferSelector"
-            />
-            <BufferSelector 
-                v-if="showMoveToBufferSelector" 
-                headline="Move block to..."
-                :commandsEnabled="false"
-                @openBuffer="onMoveCurrentBlockToOtherEditor"
-                @openCreateBuffer="(nameSuggestion) => openCreateBuffer('currentBlock', nameSuggestion)"
-                @close="closeMoveToBufferSelector"
-            />
-            <Settings 
-                v-if="showSettings"
-                :initialSettings="settingsStore.settings"
-                :themeSetting="settingsStore.themeSetting"
-                @closeSettings="closeSettings"
-            />
+            <div 
+                v-if="showLanguageSelector || showBufferSelector || showCommandPalette || showMoveToBufferSelector"
+                class="popup"
+            >
+                <LanguageSelector 
+                    v-if="showLanguageSelector" 
+                    @selectLanguage="onSelectLanguage"
+                    @close="closeDialog"
+                />
+                <BufferSelector 
+                    v-if="showBufferSelector || showCommandPalette" 
+                    :initialFilter="showCommandPalette ? '>' : ''"
+                    :commandsEnabled="true"
+                    @openBuffer="openBuffer"
+                    @openCreateBuffer="(nameSuggestion) => openCreateBuffer('new', nameSuggestion)"
+                    @close="closeBufferSelector"
+                />
+                <BufferSelector 
+                    v-if="showMoveToBufferSelector" 
+                    headline="Move block to..."
+                    :commandsEnabled="false"
+                    @openBuffer="onMoveCurrentBlockToOtherEditor"
+                    @openCreateBuffer="(nameSuggestion) => openCreateBuffer('currentBlock', nameSuggestion)"
+                    @close="closeMoveToBufferSelector"
+                />
+            </div>
             <NewBuffer 
                 v-if="showCreateBuffer"
                 @close="closeDialog"
@@ -296,6 +351,12 @@
             <EditBuffer 
                 v-if="showEditBuffer"
                 @close="closeDialog"
+            />
+            <Settings 
+                v-if="showSettings"
+                :initialSettings="settingsStore.settings"
+                :themeSetting="settingsStore.themeSetting"
+                @closeSettings="closeSettings"
             />
             <DrawImageModal
                 v-if="showDrawImageModal"
@@ -314,12 +375,32 @@
         width: 100%
         height: 100%
         position: relative
-        &.tab-bar-visible
-            height: calc(100% - var(--tab-bar-height))
-        .editor
-            height: calc(100% - 21px)
+        .main-container
+            height: calc(100% - var(--status-bar-height))
+            display: flex
+            flex-direction: row
+            .editor-container
+                height: 100%
+                width: calc(100% - var(--left-panel-width))
+                flex-grow: 1
+                .editor
+                    height: 100%
+        .overlay
+            .popup
+                position: absolute
+                top: var(--tab-bar-height)
+                left: 0
+                right: 0
+                bottom: 0
         .status
             position: absolute
             bottom: 0
             left: 0
+
+        &.left-panel-visible
+            .main-container .editor-container .editor
+                border-left: 1px solid var(--tab-bar-border-bottom-color)
+        &.tab-bar-visible
+            .main-container .editor-container .editor
+                height: calc(100% - var(--tab-bar-height))
 </style>

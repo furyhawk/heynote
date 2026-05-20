@@ -121,6 +121,9 @@ test.describe('electron app', { tag: "@e2e" }, () => {
             return await fs.stat(configPath).then(() => true).catch(() => false)
         }).toBe(true)
 
+        const config = JSON.parse(await fs.readFile(configPath, 'utf8'))
+        expect(config.clientId).toBe('testing')
+
         expect(userData).toBe(userDataDir)
         expect(configPath.startsWith(userDataDir)).toBe(true)
         expect(notesDir.startsWith(userDataDir)).toBe(true)
@@ -131,9 +134,10 @@ test.describe('electron app', { tag: "@e2e" }, () => {
         //await page.waitForTimeout(3000)
         await expect.poll(async () => (await heynotePage.getBlocks()).length).toBeGreaterThan(0)
         //console.log("blocks:", await heynotePage.getBlocks())
+        await page.locator(".cm-content").first().click()
         await page.locator("body").press(heynotePage.agnosticKey("Mod+A"))
         await page.locator("body").press(heynotePage.agnosticKey("Mod+A"))
-        page.locator("body").pressSequentially("Hello World!")
+        await page.locator("body").pressSequentially("Hello World!")
         await expect.poll(async () => await heynotePage.getBlockContent(0)).toBe("Hello World!")
         await heynotePage.waitForContentSaved()
 

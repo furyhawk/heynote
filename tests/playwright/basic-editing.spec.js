@@ -39,7 +39,7 @@ test("first block is protected", async ({ page }) => {
 })
 
 test("insert current date and time", async ({ page }) => {
-    const expectedYear = new Date().toLocaleString(undefined, {
+    const expectedYear = new Date().toLocaleString('en-GB', {
         year: 'numeric',
     })
     await page.locator("body").press("Alt+Shift+D")

@@ -124,3 +124,94 @@ Block C`)
 ∞∞∞text-a;created=[^∞\\n]+
 `))
 })
+
+test("folder selector hides dot-prefixed folders", async ({ page }) => {
+    await page.evaluate(async () => {
+        await window.heynote.buffer.createDirectory(".secret")
+        await window.heynote.buffer.createDirectory("visible")
+        await window.heynote.buffer.createDirectory("visible/.nested-hidden")
+    })
+
+    await page.locator("body").press(heynotePage.agnosticKey("Mod+N"))
+    await expect(page.locator(".new-buffer")).toBeVisible()
+    await expect(page.locator(".folder-select-container .folder", { hasText: "visible" })).toBeVisible()
+    await expect(page.locator(".folder-select-container .folder", { hasText: ".secret" })).toHaveCount(0)
+    await expect(page.locator(".folder-select-container .folder", { hasText: ".nested-hidden" })).toHaveCount(0)
+})
+
+test("folder selector fallback creates in visible selected directory", async ({ page }) => {
+    await page.evaluate(async () => {
+        await window.heynote.buffer.createDirectory(".secret")
+        window._heynote_editor.notesStore.openCreateBuffer("new", "", ".secret")
+    })
+
+    await expect(page.locator(".new-buffer")).toBeVisible()
+    await expect(page.locator(".folder-select-container .folder.selected", { hasText: "Heynote Root" })).toBeVisible()
+
+    const nameInput = page.locator(".new-buffer input[placeholder='Name']")
+    await nameInput.fill("Visible Target")
+    await nameInput.press("Enter")
+
+    await expect.poll(async () => Object.keys(await heynotePage.getStoredBufferList()).sort()).toEqual([
+        "scratch.txt",
+        "visible-target.txt",
+    ])
+})
+
+test("archive scratch dialog prefills name and selects existing archive directory", async ({ page }) => {
+    await page.evaluate(async () => {
+        await window.heynote.buffer.createDirectory("Archive")
+        window._heynote_editor.notesStore.openArchiveScratchDialog()
+    })
+
+    await expect(page.locator(".new-buffer")).toBeVisible()
+    await expect(page.locator(".new-buffer input[placeholder='Name']")).toHaveValue(/Archived Scratch \(\d{4}-\d{2}-\d{2}\)/)
+    await expect(page.locator(".folder-select-container .folder.selected", { hasText: "Archive" })).toBeVisible()
+})
+
+test("archive scratch dialog suggests a new archive folder when missing", async ({ page }) => {
+    await page.evaluate(() => {
+        window._heynote_editor.notesStore.openArchiveScratchDialog()
+    })
+
+    await expect(page.locator(".new-buffer")).toBeVisible()
+    await expect(page.locator(".new-buffer h1")).toContainText("Archive Buffer")
+    await expect(page.locator(".folder-select-container .folder.new.selected", { hasText: "archive" })).toBeVisible()
+})
+
+test("archives scratch buffer and creates a fresh scratch buffer", async ({ page }) => {
+    await heynotePage.setContent(`
+∞∞∞text
+Archived scratch content`)
+    await page.evaluate(() => {
+        window.__previousScratchEditor = window._heynote_editor
+    })
+
+    await page.evaluate(() => {
+        window._heynote_editor.notesStore.openArchiveScratchDialog()
+    })
+    await expect(page.locator(".new-buffer")).toBeVisible()
+
+    const nameInput = page.locator(".new-buffer input[placeholder='Name']")
+    await nameInput.fill("Saved Scratch")
+    await nameInput.press("Enter")
+
+    await expect.poll(async () => {
+        const buffers = await heynotePage.getStoredBufferList()
+        return Object.keys(buffers).sort()
+    }).toEqual(["archive/saved-scratch.txt", "scratch.txt"])
+
+    const archivedBuffer = NoteFormat.load(await heynotePage.getStoredBuffer("archive/saved-scratch.txt"))
+    const scratchBuffer = NoteFormat.load(await heynotePage.getStoredBuffer("scratch.txt"))
+
+    expect(archivedBuffer.metadata.name).toBe("Saved Scratch")
+    expect(archivedBuffer.content).toContain("Archived scratch content")
+
+    expect(scratchBuffer.metadata.name).toBe("Scratch")
+    expect(scratchBuffer.content).toContain("Welcome to Heynote!")
+    await expect(page.locator(".status .note")).toContainText("Scratch")
+    await expect.poll(async () => await heynotePage.getContent()).toContain("Welcome to Heynote!")
+    await expect.poll(async () => {
+        return await page.evaluate(() => window._heynote_editor === window.__previousScratchEditor)
+    }).toBe(false)
+})

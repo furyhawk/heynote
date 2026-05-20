@@ -141,6 +141,16 @@ export const heynoteBase = EditorView.theme({
     '.heynote-link': {
         textDecoration: "underline",
     },
+    '.heynote-color-preview': {
+        display: "inline-block",
+        width: "0.8em",
+        height: "0.8em",
+        marginRight: "0.3em",
+        border: "1px solid rgba(128,128,128,0.65)",
+        borderRadius: "2px",
+        boxSizing: "border-box",
+        verticalAlign: "-0.08em",
+    },
 
     ".cm-searchMatch": { backgroundColor: "#ffff00" },
     ".cm-searchMatch-selected": {

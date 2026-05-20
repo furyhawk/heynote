@@ -8,10 +8,12 @@
     import { useSettingsStore } from "@/src/stores/settings-store"
 
     import TabItem from './TabItem.vue'
+    import MainMenuButton from './MainMenuButton.vue'
 
     export default {
         components: {
             TabItem,
+            MainMenuButton,
             draggable,
         },
 
@@ -25,6 +27,7 @@
             ...mapState(useHeynoteStore, [
                 "isFocused",
                 "currentBufferName",
+                "showLeftPanel",
             ]),
             ...mapState(useSettingsStore, [
                 "theme",
@@ -72,12 +75,6 @@
         },
 
         methods: {
-            onMainMenuClick(event) {
-                const x = event.target.offsetLeft
-                const y = event.target.offsetTop + event.target.offsetHeight
-                window.heynote.mainProcess.invoke("showMainMenu", x, y)
-            },
-
             openBufferSelector() {
                 this.heynoteStore.openBufferSelector()
             },
@@ -94,13 +91,9 @@
 
 <template>
     <nav :class="className" :style="style">
-        <div class="main-menu-container">
-            <button class="main-menu"
-                @click="onMainMenuClick"
-            ></button>
-        </div>
+        <MainMenuButton v-if="!showLeftPanel" />
         <template v-if="showTabs">
-            <div class="scroller">
+            <div class="scroller" tabindex="-1">
                 <draggable 
                     :list="tabs" 
                     tag="ol"
@@ -154,41 +147,19 @@
             padding-right: 0
         
         &.show-tabs
-            box-shadow: var(--tab-bar-inset-shadow)
-        
-        .main-menu-container
-            width: 37px
-            flex-shrink: 0
-            text-align: center
-            button
-                app-region: none
-                border: none
-                padding: 0
-                margin: 0
-                width: 18px
-                height: 20px
-                margin-top: 6px
-                background: none
-                background-image: url("@/assets/icons/vertical-dots-light.svg")
-                background-repeat: no-repeat
-                background-position: center
-                background-size: 14px
-                border-radius: 3px
+            //box-shadow: var(--tab-bar-inset-shadow)
+            position: relative
+            &:after
+                content: "\0020"
+                display: block
+                position: absolute
+                bottom: -1px
+                width: 100%
+                height: 1px /* when 0 no shadow is displayed*/
+                box-shadow: rgba(0,0,0, 0.15) 0 0 5px 0
                 +dark-mode
-                    background-image: url("@/assets/icons/vertical-dots-dark.svg")
-                &:hover
-                    background-color: #ccc
-                    +dark-mode
-                        background-color: #3a3a3a
-            +platform-mac
-                width: 80px
-                button
-                    display: none
-            +platform-mac-fullscreen
-                width: 16px
-            +platform-webapp
-                button
-                    display: none
+                    box-shadow: rgba(0,0,0, 0.5) 0 0 5px 0
+                //box-shadow: #fff 0 0 5px 0
 
         .scroller
             margin-top: 5px
@@ -197,6 +168,11 @@
             overflow-x: auto
             scrollbar-width: none
             app-region: none
+            +dark-mode
+                // needed to make the tabs visually aligned with the editor, since the editor's border-left
+                // (when the left panel is enabled) is much more discreet in dark mode, and looks more like
+                // it's part of the background
+                margin-left: 1px
             ol
                 display: flex
                 list-style: none

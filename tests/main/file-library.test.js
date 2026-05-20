@@ -83,6 +83,45 @@ describe("FileLibrary", () => {
         expect(fs.existsSync(path.join(tmpDir, "moved.txt"))).toBe(false)
     })
 
+    it("creates directories recursively", async () => {
+        const { FileLibrary } = await loadFileLibrary()
+        library = new FileLibrary(tmpDir, {})
+
+        await library.createDirectory(path.join("a", "b", "c"))
+
+        expect(fs.existsSync(path.join(tmpDir, "a"))).toBe(true)
+        expect(fs.existsSync(path.join(tmpDir, "a", "b"))).toBe(true)
+        expect(fs.existsSync(path.join(tmpDir, "a", "b", "c"))).toBe(true)
+    })
+
+    it("detects whether a directory is empty", async () => {
+        const { FileLibrary } = await loadFileLibrary()
+        library = new FileLibrary(tmpDir, {})
+
+        await library.createDirectory("empty-dir")
+        expect(await library.isDirectoryEmpty("empty-dir")).toBe(true)
+
+        await library.create(path.join("empty-dir", "note.txt"), "content")
+        expect(await library.isDirectoryEmpty("empty-dir")).toBe(false)
+
+        expect(await library.isDirectoryEmpty("missing-dir")).toBe(false)
+    })
+
+    it("deletes only empty directories", async () => {
+        const { FileLibrary } = await loadFileLibrary()
+        library = new FileLibrary(tmpDir, {})
+
+        await library.createDirectory("to-delete")
+        await library.deleteDirectory("to-delete")
+        expect(fs.existsSync(path.join(tmpDir, "to-delete"))).toBe(false)
+
+        await library.createDirectory("non-empty")
+        await library.create(path.join("non-empty", "note.txt"), "content")
+        await expect(library.deleteDirectory("non-empty")).rejects.toThrow(
+            "Directory is not empty: non-empty"
+        )
+    })
+
     it("rejects deleting the scratch file", async () => {
         const { FileLibrary } = await loadFileLibrary()
         library = new FileLibrary(tmpDir, {})

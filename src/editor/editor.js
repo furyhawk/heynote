@@ -24,6 +24,7 @@ import { autoSaveContent } from "./save.js"
 import { imageExtension } from "./image/image.js"
 import { todoCheckboxPlugin} from "./todo-checkbox.ts"
 import { links } from "./links.js"
+import { colorPreviewExtension } from "./color-preview.js"
 import { indentation } from "./indentation.js"
 import { HEYNOTE_COMMANDS } from "./commands.js";
 import { NoteFormat } from "../common/note-format.js"
@@ -63,6 +64,7 @@ export class HeynoteEditor {
         keyBindings,
         spellcheckEnabled=false,
         showWhitespace=false,
+        colorPreviewEnabled=true,
         cursorBlinkRate=1000,
     }) {
         this.element = element
@@ -76,6 +78,7 @@ export class HeynoteEditor {
         this.closeBracketsCompartment = new Compartment
         this.indentUnitCompartment = new Compartment
         this.highlightWhitespaceCompartment = new Compartment
+        this.colorPreviewCompartment = new Compartment
         this.cursorBlinkCompartment = new Compartment
         this.deselectOnCopy = keymap === "emacs"
         this.emacsMetaKey = emacsMetaKey
@@ -134,6 +137,7 @@ export class HeynoteEditor {
                 Prec.highest(cmKeymap.of(markdownKeymap)),
 
                 links,
+                this.colorPreviewCompartment.of(colorPreviewEnabled ? colorPreviewExtension : []),
 
                 this.spellcheckCompartment.of(spellcheckConfig(this.spellcheckEnabled)),
                 this.highlightWhitespaceCompartment.of(showWhitespace ? highlightWhitespace() : [])
@@ -286,6 +290,30 @@ export class HeynoteEditor {
         })
     }
 
+    setCursorPositionAtLineColumn(lineNumber, column=0) {
+        if (!Number.isInteger(lineNumber)) {
+            return
+        }
+
+        const line = this.view.state.doc.line(Math.max(1, Math.min(lineNumber, this.view.state.doc.lines)))
+        const position = Math.max(line.from, Math.min(line.to, line.from + Math.max(0, column)))
+        this.setCursorPosition(position)
+    }
+
+    setSelectionAtLineColumns(lineNumber, fromColumn=0, toColumn=fromColumn) {
+        if (!Number.isInteger(lineNumber)) {
+            return
+        }
+
+        const line = this.view.state.doc.line(Math.max(1, Math.min(lineNumber, this.view.state.doc.lines)))
+        const from = Math.max(line.from, Math.min(line.to, line.from + Math.max(0, fromColumn)))
+        const to = Math.max(line.from, Math.min(line.to, line.from + Math.max(0, toColumn)))
+        this.view.dispatch({
+            selection: {anchor: from, head: to},
+            scrollIntoView: true,
+        })
+    }
+
     focus() {
         this.view.focus()
     }
@@ -327,6 +355,12 @@ export class HeynoteEditor {
     setShowWhitespace(enabled) {
         this.view.dispatch({
             effects: this.highlightWhitespaceCompartment.reconfigure(enabled ? highlightWhitespace() : []),
+        })
+    }
+
+    setColorPreviewEnabled(enabled) {
+        this.view.dispatch({
+            effects: this.colorPreviewCompartment.reconfigure(enabled ? colorPreviewExtension : []),
         })
     }
 

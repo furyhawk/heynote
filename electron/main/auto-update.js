@@ -27,6 +27,13 @@ autoUpdater.logger.transports.file.level = "info"
 autoUpdater.autoDownload = false
 autoUpdater.allowDowngrade = true
 
+export function updateAutoInstallUpdates() {
+    const autoInstallUpdates = CONFIG.get("settings.autoInstallUpdates") !== false
+    autoUpdater.autoDownload = autoInstallUpdates
+    autoUpdater.autoInstallOnAppQuit = autoInstallUpdates
+}
+updateAutoInstallUpdates()
+
 autoUpdater.on('error', (error) => {
     window?.webContents.send(UPDATE_ERROR, error == null ? "unknown" : (error.stack || error).toString())
     //dialog.showErrorBox('Error: ', error == null ? "unknown" : (error.stack || error).toString())

@@ -90,7 +90,7 @@
 
 <style lang="sass" scoped>
     li
-        app-region: none
+        //app-region: none
         position: relative
         height: 24px
         margin-top: 0px

@@ -1,4 +1,6 @@
 import CONFIG from "../config"
+import pkg from "../../package.json"
+import { CURRENCY_RATES_URL, getCurrencyFetchOptions } from "@/src/common/currency-request"
 
 const STALE_TIME = 1000 * 3600 * 12
 
@@ -11,7 +13,10 @@ export default async function getCurrencyData() {
         // we either don't have currency data, or it's stale
         let response
         try {
-            response = await fetch("https://currencies.heynote.com/rates.json", {cache: "no-cache"})
+            response = await fetch(
+                CURRENCY_RATES_URL,
+                getCurrencyFetchOptions(CONFIG.get("clientId"), pkg.version),
+            )
         } catch(err) {
             // if we got an error, but have stale currency data, we'll use that
             if (currency?.data) {

@@ -41,10 +41,14 @@
 
         mounted() {
             if (this.settingsStore.settings.searchSettings) {
-                this.caseSensitive = this.settingsStore.settings.searchSettings.caseSensitive
-                this.regexp = this.settingsStore.settings.searchSettings.regexp
-                this.wholeWord = this.settingsStore.settings.searchSettings.wholeWord
-                this.onlyCurrentBlock = this.settingsStore.settings.searchSettings.onlyCurrentBlock
+                const searchSettings = this.settingsStore.settings.searchSettings
+                if (searchSettings.query !== undefined) {
+                    this.queryStr = searchSettings.query
+                }
+                this.caseSensitive = searchSettings.caseSensitive
+                this.regexp = searchSettings.regexp
+                this.wholeWord = searchSettings.wholeWord
+                this.onlyCurrentBlock = searchSettings.onlyCurrentBlock
             }
 
             this.$nextTick(() => {
@@ -77,9 +81,24 @@
             searchParams() {
                 this.search()
             },
+
+            queryStr() {
+                this.persistSearchSettings({
+                    query: this.queryStr,
+                })
+            },
         },
 
         methods: {
+            persistSearchSettings(settings) {
+                this.settingsStore.updateSettings({
+                    searchSettings: {
+                        ...(this.settingsStore.settings.searchSettings || {}),
+                        ...settings,
+                    },
+                })
+            },
+
             search() {
                 let query = new SearchQuery({
                     search: this.queryStr,
@@ -140,13 +159,12 @@
                 if (event.detail > 0) {
                     this.$refs.input.focus()
                 }
-                this.settingsStore.updateSettings({
-                    searchSettings: {
-                        onlyCurrentBlock: this.onlyCurrentBlock,
-                        caseSensitive: this.caseSensitive,
-                        regexp: this.regexp,
-                        wholeWord: this.wholeWord,
-                    },
+                this.persistSearchSettings({
+                    query: this.queryStr,
+                    onlyCurrentBlock: this.onlyCurrentBlock,
+                    caseSensitive: this.caseSensitive,
+                    regexp: this.regexp,
+                    wholeWord: this.wholeWord,
                 })
                 this.view.dispatch({
                     annotations: [heynoteEvent.of(SEARCH_SETTINGS_UPDATED)],//, Transaction.addToHistory.of(false)],

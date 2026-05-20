@@ -4,6 +4,7 @@ import { defineConfig } from 'vite'
 import vue from '@vitejs/plugin-vue'
 
 import * as child from "child_process";
+import pkg from '../package.json'
 
 const middleware = () => {
     return {
@@ -52,7 +53,7 @@ export default defineConfig({
     },
 
     define: {
-        '__APP_VERSION__': JSON.stringify(process.env.npm_package_version),
+        '__APP_VERSION__': JSON.stringify(pkg.version),
         '__GIT_HASH__': JSON.stringify(child.execSync('git rev-parse --short HEAD').toString().trim()),
         '__TESTS__': process.env.HEYNOTE_TESTS,
     },

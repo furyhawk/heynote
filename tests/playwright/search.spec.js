@@ -190,6 +190,9 @@ test("regular expressions setting", async ({ page }) => {
 test("search settings persistence", async ({ page }) => {
     // Open search panel
     await page.locator("body").press(heynotePage.agnosticKey("Mod+f"))
+
+    // Set a search query
+    await page.locator(".search-panel input[main-field]").fill("persisted query")
     
     // Toggle some settings
     await page.locator(".search-panel .input-toggle.case-sensitive").click()
@@ -208,10 +211,30 @@ test("search settings persistence", async ({ page }) => {
     // Open search panel again
     await page.locator("body").press(heynotePage.agnosticKey("Mod+f"))
     
-    // Check that settings are preserved
+    // Check that settings and query are preserved
+    await expect(page.locator(".search-panel input[main-field]")).toHaveValue("persisted query")
     await expect(page.locator(".search-panel .input-toggle.case-sensitive")).toHaveClass(/active/)
     await expect(page.locator(".search-panel .input-toggle.whole-words")).toHaveClass(/active/)
     await expect(page.locator(".search-panel .input-toggle.block")).not.toHaveClass(/active/)
+})
+
+test("search query persists between editor instances", async ({ page }) => {
+    await page.locator("body").press(heynotePage.agnosticKey("Mod+f"))
+    await page.locator(".search-panel input[main-field]").fill("shared search")
+    await page.locator("body").press("Escape")
+
+    await page.locator("body").press(heynotePage.agnosticKey("Mod+n"))
+    await page.locator("body").pressSequentially("Second Buffer")
+    await page.locator("body").press("Enter")
+    await page.waitForTimeout(100)
+
+    await page.locator("body").press(heynotePage.agnosticKey("Mod+f"))
+    await expect(page.locator(".search-panel input[main-field]")).toHaveValue("shared search")
+    await page.locator("body").press("Escape")
+
+    await page.locator("body").press(heynotePage.agnosticKey("Mod+1"))
+    await page.locator("body").press(heynotePage.agnosticKey("Mod+f"))
+    await expect(page.locator(".search-panel input[main-field]")).toHaveValue("shared search")
 })
 
 test("combined search settings", async ({ page }) => {

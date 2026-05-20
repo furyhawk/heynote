@@ -1,6 +1,9 @@
 import { defineConfig, devices } from '@playwright/test';
 
 process.env["HEYNOTE_TESTS"] = "1"
+const ELECTRON_E2E_SPECS = [
+    '**/*-e2e.spec.js',
+]
 
 /**
  * Read environment variables from file.
@@ -39,6 +42,7 @@ export default defineConfig({
     projects: [
         {
             name: 'chromium',
+            testIgnore: ELECTRON_E2E_SPECS,
             use: {
                 ...devices['Desktop Chrome'],
                 contextOptions: {
@@ -49,12 +53,21 @@ export default defineConfig({
 
         {
             name: 'firefox',
+            testIgnore: ELECTRON_E2E_SPECS,
             use: { ...devices['Desktop Firefox'] },
         },
 
         {
             name: 'webkit',
+            testIgnore: ELECTRON_E2E_SPECS,
             use: { ...devices['Desktop Safari'] },
+        },
+
+        {
+            name: 'electron',
+            workers: 1,
+            testMatch: ELECTRON_E2E_SPECS,
+            use: { ...devices['Desktop Chrome'] },
         },
 
         /* Test against mobile viewports. */

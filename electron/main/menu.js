@@ -7,6 +7,14 @@ import { getLanguageName } from "@/src/common/language-code/language-code"
 
 const isMac = process.platform === "darwin"
 
+function getParentDirectory(path) {
+    const separatorIndex = Math.max(path.lastIndexOf("/"), path.lastIndexOf("\\"))
+    if (separatorIndex === -1) {
+        return ""
+    }
+    return path.slice(0, separatorIndex)
+}
+
 
 const undoMenuItem = {
     label: 'Undo',
@@ -207,12 +215,12 @@ const template = [
 export const menu = Menu.buildFromTemplate(template)
 
 
-export function getTrayMenu(win) {
+export function getTrayMenu(win, showWindow) {
     return Menu.buildFromTemplate([
         {
             label: 'Open Heynote',
             click: () => {
-                win.show()
+                showWindow()
             },
         },
         { type: 'separator' },
@@ -248,10 +256,17 @@ export function getTabContextMenu(win, tabPath) {
     
     const menuItems = []
     
-    if (!isScratchFile) {
+    if (isScratchFile) {
+        menuItems.push({
+            label: 'Archive...',
+            click: () => {
+                win?.webContents.send('tab:archiveScratch')
+            },
+        })
+    } else {
         menuItems.push(
             {
-                label: 'Edit Buffer',
+                label: 'Edit Buffer…',
                 click: () => {
                     win?.webContents.send('tab:editBuffer', tabPath)
                 },
@@ -275,7 +290,7 @@ export function getTabContextMenu(win, tabPath) {
         {
             label: 'New Buffer…',
             click: () => {
-                win?.webContents.send('tab:createNew')
+                win?.webContents.send('tab:openNew', getParentDirectory(tabPath))
             },
         },
         {type: 'separator'},
@@ -288,6 +303,95 @@ export function getTabContextMenu(win, tabPath) {
     )
     
     return Menu.buildFromTemplate(menuItems)
+}
+
+export function getBufferTreeContextMenu(win, bufferPath) {
+    const isScratchFile = bufferPath === SCRATCH_FILE_NAME
+    const parentDirectory = getParentDirectory(bufferPath)
+    const menuItems = []
+
+    if (isScratchFile) {
+        menuItems.push({
+            label: 'Archive...',
+            click: () => {
+                win?.webContents.send('tab:archiveScratch')
+            },
+        })
+    } else {
+        menuItems.push(
+            {
+                label: 'Edit Buffer…',
+                click: () => {
+                    win?.webContents.send('tab:editBuffer', bufferPath)
+                },
+            },
+            {
+                label: 'Delete Buffer',
+                click: () => {
+                    win?.webContents.send('tab:deleteBuffer', bufferPath)
+                },
+            }
+        )
+    }
+
+    menuItems.push(
+        { type: 'separator' },
+        {
+            label: 'New Buffer…',
+            click: () => {
+                win?.webContents.send('tab:openNew', parentDirectory)
+            },
+        },
+        {
+            label: 'New Folder…',
+            click: () => {
+                win?.webContents.send('bufferTree:createFolder', parentDirectory)
+            },
+        }
+    )
+
+    return Menu.buildFromTemplate(menuItems)
+}
+
+export function getBufferTreeDirectoryContextMenu(win, directoryPath, isEmptyDirectory) {
+    return Menu.buildFromTemplate([
+        {
+            label: 'New Buffer…',
+            click: () => {
+                win?.webContents.send('tab:openNew', directoryPath || "")
+            },
+        },
+        {
+            label: 'New Folder…',
+            click: () => {
+                win?.webContents.send('bufferTree:createFolder', directoryPath || "")
+            },
+        },
+        {
+            label: 'Delete Folder',
+            enabled: isEmptyDirectory,
+            click: () => {
+                win?.webContents.send('bufferTree:deleteDirectory', directoryPath)
+            },
+        },
+    ])
+}
+
+export function getBufferTreeBackgroundContextMenu(win) {
+    return Menu.buildFromTemplate([
+        {
+            label: "New Buffer…",
+            click: () => {
+                win?.webContents.send("tab:openNew", "")
+            },
+        },
+        {
+            label: "New Folder…",
+            click: () => {
+                win?.webContents.send("bufferTree:createFolder", "")
+            },
+        },
+    ])
 }
 
 

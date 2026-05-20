@@ -77,6 +77,7 @@ test("delete custom key binding", async ({page}) => {
     await page.locator("css=.overlay .settings .dialog .bottom-bar .close").click()
     await page.locator("body").press("Control+Shift+H")
     await expect(page.locator("css=.language-selector .items > li.selected")).toBeVisible()
+    await page.locator("body").press("Escape")
     
     await page.locator("css=.status-block.settings").click()
     await page.locator("css=.overlay .settings .dialog .sidebar li.tab-keyboard-bindings").click()

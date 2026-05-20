@@ -1,5 +1,7 @@
 import { app } from "electron"
 import Store from "electron-store"
+import { generateClientId, TEST_CLIENT_ID } from "../src/common/client-id"
+import { DEFAULT_LEFT_PANEL_WIDTH } from "../src/common/constants"
 import { isMac } from "./detect-platform"
 
 // the process.type === "browser" check is needed because both the main and renderer process 
@@ -13,6 +15,8 @@ const isDev = !!process.env.VITE_DEV_SERVER_URL
 const schema = {
     additionalProperties: false,
 
+    clientId: {type: "string"},
+
     windowConfig: {
         type: "object",
         properties: {
@@ -22,6 +26,7 @@ const schema = {
             y: {type: "number"},
             isMaximized: {type: "boolean"},
             isFullScreen: {type: "boolean"},
+            visibleOnQuit: {type: "boolean", default: true},
         },
         additionalProperties: false,
     },
@@ -48,7 +53,15 @@ const schema = {
             "showFoldGutter": {type: "boolean", default:true},
             "showTabs": {type: "boolean", default: true},
             "showTabsInFullscreen": {type: "boolean", default: true},
+            "showLeftPanel": {type: "boolean", default: true},
+            "leftPanelWidth": {type: "integer", default: DEFAULT_LEFT_PANEL_WIDTH},
+            "bufferTreeOpenFolders": {
+                type: "array",
+                items: {type: "string"},
+                default: [],
+            },
             "autoUpdate": {type: "boolean", default: true},
+            "autoInstallUpdates": {type: "boolean", default: true},
             "allowBetaVersions": {type: "boolean", default: false},
             "enableGlobalHotkey": {type: "boolean", default: false},
             "globalHotkey": {type: "string", default: "CmdOrCtrl+Shift+H"},
@@ -56,6 +69,8 @@ const schema = {
             "showInDock": {type: "boolean", default: true},
             "showInMenu": {type: "boolean", default: false},
             "alwaysOnTop": {type: "boolean", default: false},
+            "openAtLogin": {type: "boolean", default: false},
+            "startHidden": {type: "boolean", default: false},
             "bracketClosing": {type: "boolean", default: false},
             "indentType": {type: "string", default: "space"},
             "tabSize": {type: "integer", default: 4},
@@ -63,6 +78,7 @@ const schema = {
             "defaultBlockLanguageAutoDetect": {type: "boolean"},
             "spellcheckEnabled": {type: "boolean", default:false},
             "showWhitespace": {type:"boolean", default:false},
+            "colorPreviewEnabled": {type: "boolean", default: true},
             "cursorBlinkRate": {type: "integer", default: 1000},
             "drawSettings": {
                 type: "object",
@@ -82,6 +98,14 @@ const schema = {
                 type: "object",
                 properties: {
                     onlyCurrentBlock: {type: "boolean"},
+                    caseSensitive: {type: "boolean"},
+                    wholeWord: {type: "boolean"},
+                    regexp: {type: "boolean"},
+                },
+            },
+            "librarySearchSettings": {
+                type: "object",
+                properties: {
                     caseSensitive: {type: "boolean"},
                     wholeWord: {type: "boolean"},
                     regexp: {type: "boolean"},
@@ -127,7 +151,11 @@ const defaults = {
         keyBindings: [],
         showLineNumberGutter: true,
         showFoldGutter: true,
+        showLeftPanel: true,
+        leftPanelWidth: DEFAULT_LEFT_PANEL_WIDTH,
+        bufferTreeOpenFolders: [],
         autoUpdate: true,
+        autoInstallUpdates: true,
         allowBetaVersions: false,
         enableGlobalHotkey: false,
         globalHotkey: "CmdOrCtrl+Shift+H",
@@ -135,6 +163,8 @@ const defaults = {
         showInDock: true,
         showInMenu: false,
         alwaysOnTop: false,
+        openAtLogin: false,
+        startHidden: false,
         bracketClosing: false,
         indentType: "space",
         tabSize: 4,
@@ -144,11 +174,25 @@ const defaults = {
             wholeWord: false,
             regexp: false,
         },
+        librarySearchSettings: {
+            caseSensitive: false,
+            wholeWord: false,
+            regexp: false,
+        },
         spellcheckEnabled: false,
         showWhitespace: false,
+        colorPreviewEnabled: true,
         cursorBlinkRate: 1000,
     },
     theme: "system",
 }
 
-export default new Store({schema, defaults, name: isDev ? "config-dev" : "config"})
+const config = new Store({schema, defaults, name: isDev ? "config-dev" : "config"})
+
+if (process.env.HEYNOTE_TESTS) {
+    config.set("clientId", TEST_CLIENT_ID)
+} else if (!config.get("clientId")) {
+    config.set("clientId", generateClientId())
+}
+
+export default config

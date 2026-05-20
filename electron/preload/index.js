@@ -88,12 +88,24 @@ contextBridge.exposeInMainWorld("heynote", {
             return await ipcRenderer.invoke("buffer:delete", path)
         },
 
+        async isDirectoryEmpty(path) {
+            return await ipcRenderer.invoke("buffer:isDirectoryEmpty", path)
+        },
+
+        async deleteDirectory(path) {
+            return await ipcRenderer.invoke("buffer:deleteDirectory", path)
+        },
+
         async move(path, newPath) {
             return await ipcRenderer.invoke("buffer:move", path, newPath)
         },
 
         async create(path, content) {
             return await ipcRenderer.invoke("buffer:create", path, content)
+        },
+
+        async createDirectory(path) {
+            return await ipcRenderer.invoke("buffer:createDirectory", path)
         },
 
         async saveAndQuit(contents) {
